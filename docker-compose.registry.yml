@@ -1,0 +1,46 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gestion_turnos}
+      POSTGRES_USER: ${POSTGRES_USER:-turnos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-turnos_pass}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-turnos_user} -d ${POSTGRES_DB:-gestion_turnos}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    image: ghcr.io/mariaruival/mi-backend:v0.1.0
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-gestion_turnos}
+      PGUSER: ${POSTGRES_USER:-turnos_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-turnos_pass}
+      PORT: 4000
+      CORS_ORIGIN: '*'
+      JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto-en-produccion}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+    ports:
+      - '4000:4000'
+
+  frontend:
+    image: ghcr.io/mariaruival/mi-frontend:v0.1.0
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '5173:80'
+
+volumes:
+  pgdata:
