@@ -1,0 +1,53 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-gestion_turnos}
+      POSTGRES_USER: ${POSTGRES_USER:-turnos_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-turnos_pass}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      # Se ejecuta una unica vez, al crear el volumen por primera vez.
+      - ./backend/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+    ports:
+      - '5432:5432'
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-turnos_user} -d ${POSTGRES_DB:-gestion_turnos}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: 5432
+      PGDATABASE: ${POSTGRES_DB:-gestion_turnos}
+      PGUSER: ${POSTGRES_USER:-turnos_user}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-turnos_pass}
+      PORT: 4000
+      CORS_ORIGIN: '*'
+      JWT_SECRET: ${JWT_SECRET:-cambiar-este-secreto-en-produccion}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-8h}
+    ports:
+      - '4000:4000'
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:4000/api}
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - '5173:80'
+
+volumes:
+  pgdata:
