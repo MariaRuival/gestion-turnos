@@ -153,3 +153,50 @@ Implementada en **dos capas**, a proposito:
 - **`utils/turnoRules.js` separado de los controllers**: agrupa las reglas 2, 3
   y 4 como funciones puras (sin `req`/`res`, sin SQL) para poder leerlas o
   testearlas de forma aislada, sin tener que levantar un servidor HTTP.
+
+
+  ---
+
+## TP2 — Contenedores
+
+### Imágenes base elegidas
+
+| Servicio | Etapa de build | Etapa final | Por qué |
+|---|---|---|---|
+| Backend | `node:20-alpine` | `node:20-alpine` | Sin paso de compilación (JS plano, sin TypeScript ni bundler), así que build y runtime comparten la misma base. Alpine para minimizar superficie de imagen. |
+| Frontend | `node:20-alpine` (con Vite) | `nginx:1.27-alpine` | El build genera archivos estáticos (`dist/`); servirlos con nginx evita cargar el runtime de Node en producción. |
+
+### Estructura multi-stage: qué se descarta y qué queda
+
+**Backend** — dos etapas (`deps` y `final`), ambas sobre `node:20-alpine`:
+- `deps`: instala solo dependencias de producción (`npm install --omit=dev`).
+- `final`: copia `node_modules` ya resuelto + código fuente, sin caché de npm ni artefactos de instalación.
+- Tamaños: `node:20-alpine` base = **194MB** → imagen final `mi-backend:v0.1.0` = **202MB** (+8MB de `node_modules` y código propio).
+- La ganancia de este multi-stage es menor que en lenguajes compilados (no hay un SDK pesado que descartar, como pasaría con el `dotnet/sdk` del ejemplo de la cátedra), pero igual se aplicó el principio por dos motivos: separa una capa cacheable (dependencias) del código que cambia seguido, y deja la estructura lista si en el futuro se suma un paso de build (TypeScript, bundling) sin tener que rediseñar el Dockerfile.
+
+**Frontend** — dos etapas con bases distintas (`build` y `nginx`):
+- `build`: instala *todas* las dependencias (incluidas devDependencies, como Vite) y corre `npm run build`.
+- Etapa final: parte de `nginx:1.27-alpine` (**75.9MB** base) y copia únicamente `dist/` (el HTML/CSS/JS ya compilado).
+- Acá el multi-stage sí es determinante: la etapa de build carga Vite, el compilador de React y todo `node_modules` de desarrollo — nada de eso viaja a producción. La imagen final (`mi-frontend:v0.1.0` = **76.2MB**) es prácticamente solo `nginx:1.27-alpine` + un puñado de archivos estáticos (+0.3MB).
+
+### Qué persiste y qué no
+
+- El volumen nombrado `pgdata` (declarado en `docker-compose.yml`) es lo único con estado real: sobrevive a `docker compose down` y solo se borra con `docker compose down -v`. Probado explícitamente (ver `evidencias.md`).
+- Backend y frontend son completamente stateless — cualquier dato que "recuerden" en memoria se pierde al recrear el contenedor, por diseño: toda la persistencia vive en Postgres.
+- El schema (`backend/src/db/schema.sql`) se monta como bind mount de solo lectura en `docker-entrypoint-initdb.d`, así que solo se aplica la primera vez que se crea el volumen — si se cambia el schema después, hay que recrear el volumen (`down -v`) para que tome efecto.
+
+### Decisión: URL absoluta en el frontend (no proxy de nginx)
+
+El frontend usa `VITE_API_URL=http://localhost:4000/api`, resuelto en tiempo de build de Vite (opción "URL absoluta + CORS", no la de proxy con ruta relativa). Esto significa:
+- El backend necesita `CORS_ORIGIN` habilitado para el origen del frontend (en este proyecto está en `'*'` para simplificar el desarrollo local; en un entorno real convendría restringirlo al dominio exacto).
+- La URL de la API queda "horneada" en el bundle del frontend al momento del build — si cambia el entorno (por ejemplo, en el TP6 con QA/PROD), hay que reconstruir la imagen del frontend con un `VITE_API_URL` distinto, a diferencia del enfoque con proxy de nginx donde la misma imagen serviría para cualquier entorno.
+- Se eligió mantener este enfoque (ya estaba así antes del TP2) en vez de migrar a proxy porque ya estaba probado end-to-end y el problema que resuelve el proxy (evitar CORS, misma imagen para todo entorno) no es crítico en esta etapa del semestre.
+
+### Problemas encontrados y cómo se resolvieron
+
+- **Push a ghcr.io fallando con timeout de proxy** (`proxyconnect tcp: dial tcp 192.168.65.1:3128: i/o timeout`): Docker Desktop tenía activada una configuración manual de proxy sin servidor real cargado. Se resolvió desactivando "Manual proxy configuration" en Settings → Resources → Proxies y reiniciando Docker Desktop, para que use la detección automática del sistema.
+- **Backend con Dockerfile de una sola etapa**: el proyecto (generado inicialmente con asistencia de IA) traía un Dockerfile funcional pero sin separación build/runtime. Se reescribió a multi-stage (`deps` + `final`) para cumplir el requisito de la cátedra, documentado arriba.
+
+### Uso de IA
+
+El scaffold inicial de la aplicación (backend, frontend, `docker-compose.yml` original de una sola etapa para el backend, `Dockerfile` del frontend ya multi-stage) fue generado con asistencia de Claude Code, verificado manualmente end-to-end antes de este TP (instalación de dependencias, seed, pruebas de API con curl, build del frontend). Para el TP2 específicamente, se usó IA para: identificar que el Dockerfile del backend no era multi-stage y reescribirlo, redactar el `docker-compose.registry.yml`, y guiar el proceso de publicación en ghcr.io (incluyendo el diagnóstico del error de proxy). Todo se ejecutó y verificó a mano, paso a paso, no se copió sin probar.
