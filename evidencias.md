@@ -10,8 +10,7 @@
 <img width="3024" height="1454" alt="image" src="https://github.com/user-attachments/assets/c9d4873d-f5e7-45a4-8215-ba09f9adf153" />
 
 ### Release v1.0.0 publicada
-<img width="2560" height="1450" alt="image" src="<img width="1511" height="728" alt="image" src="https://github.com/user-attachments/assets/0280e248-23c4-499c-8c58-ef3548635d85" />
-" />
+   <img width="1511" height="728" alt="image" src="https://github.com/user-attachments/assets/0280e248-23c4-499c-8c58-ef3548635d85" />
 
 ---
 
