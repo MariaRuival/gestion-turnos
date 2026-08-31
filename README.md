@@ -1,4 +1,4 @@
-# Gestion de Turnos
+# Gestión de Turnos — Sistema de reservas≈# Gestion de Turnos
 
 Aplicacion web para gestionar turnos de un negocio chico (peluqueria, consultorio, etc.).
 Un cliente reserva turnos eligiendo servicio(s), fecha y hora; un admin ve todos los
