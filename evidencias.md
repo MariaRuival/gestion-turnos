@@ -1,3 +1,18 @@
+## TP1 — Git colaborativo
+
+### Rechazo del push
+<img width="1280" height="434" alt="image" src="https://github.com/user-attachments/assets/3c334d5f-fbf7-4aaf-8233-b512655fea94" />
+
+### Aviso de conflicto en el PR
+<img width="3018" height="1650" alt="image" src="https://github.com/user-attachments/assets/913f9038-69ab-43bb-94f0-c700e92bbb51" />
+
+### Marcadores del conflicto
+<img width="3024" height="1454" alt="image" src="https://github.com/user-attachments/assets/c9d4873d-f5e7-45a4-8215-ba09f9adf153" />
+
+---
+
+## TP2 — Contenedores
+
 # Evidencias — TP2 Contenedores
 
 ## 1. Protección de rama funcionando
