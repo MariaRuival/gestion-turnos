@@ -6,34 +6,33 @@ tener que releer todo el proyecto.
 
 ## Organizacion general
 
-```
 backend/src/
-├── server.js            arranca el proceso, valida env vars obligatorias
-├── app.js                arma la app de Express (middlewares, rutas, error handler)
-├── config/db.js          pool de conexion a Postgres (lee TODO de variables de entorno)
+├── server.js arranca el proceso, valida env vars obligatorias
+├── app.js arma la app de Express (middlewares, rutas, error handler)
+├── config/db.js pool de conexion a Postgres (lee TODO de variables de entorno)
 ├── db/
-│   ├── schema.sql         tablas, constraints, la regla de no-solapamiento a nivel DB
-│   └── seed.js            usuarios y servicios de demo
-├── models/                una funcion por consulta SQL, sin logica de negocio
-│   ├── usuarioModel.js
-│   ├── servicioModel.js
-│   └── turnoModel.js       incluye la transaccion de creacion de turno
-├── controllers/            reciben el request, aplican las reglas de negocio,
-│   ├── authController.js    llaman al model, devuelven la respuesta
-│   ├── servicioController.js
-│   └── turnoController.js   <- ES EL ARCHIVO MAS IMPORTANTE DEL BACKEND
+│ ├── schema.sql tablas, constraints, la regla de no-solapamiento a nivel DB
+│ └── seed.js usuarios y servicios de demo
+├── models/ una funcion por consulta SQL, sin logica de negocio
+│ ├── usuarioModel.js
+│ ├── servicioModel.js
+│ └── turnoModel.js incluye la transaccion de creacion de turno
+├── controllers/ reciben el request, aplican las reglas de negocio,
+│ ├── authController.js llaman al model, devuelven la respuesta
+│ ├── servicioController.js
+│ └── turnoController.js <- ES EL ARCHIVO MAS IMPORTANTE DEL BACKEND
 ├── middleware/
-│   ├── auth.js              valida el JWT y el rol (cliente/admin)
-│   └── errorHandler.js      unico lugar que formatea errores como JSON
-├── routes/                  mapeo URL -> controller, con los middlewares de permisos
-└── utils/turnoRules.js      <- funciones PURAS de negocio (sin DB, sin Express)
+│ ├── auth.js valida el JWT y el rol (cliente/admin)
+│ └── errorHandler.js unico lugar que formatea errores como JSON
+├── routes/ mapeo URL -> controller, con los middlewares de permisos
+└── utils/turnoRules.js <- funciones PURAS de negocio (sin DB, sin Express)
 
 frontend/src/
-├── pages/                   Login.jsx, ClienteView.jsx, AdminView.jsx (las 3 pantallas)
-├── components/               piezas reutilizables (tarjeta de turno, checklist de servicios)
-├── context/AuthContext.jsx   guarda el usuario/token logueado (localStorage)
-└── api/client.js             unico lugar que hace fetch() a la API
-```
+├── pages/ Login.jsx, ClienteView.jsx, AdminView.jsx (las 3 pantallas)
+├── components/ piezas reutilizables (tarjeta de turno, checklist de servicios)
+├── context/AuthContext.jsx guarda el usuario/token logueado (localStorage)
+└── api/client.js unico lugar que hace fetch() a la API
+
 
 **Idea central:** el frontend no decide nada de negocio, solo muestra datos y
 deshabilita botones "por las dudas" (mejor UX). La autoridad final sobre las
@@ -57,11 +56,11 @@ Implementada en **dos capas**, a proposito:
 
 - **Capa de base de datos** (garantia definitiva): [`backend/src/db/schema.sql`](backend/src/db/schema.sql),
   constraint `no_solapamiento_turnos` en la tabla `turnos`:
-  ```sql
+```sql
   CONSTRAINT no_solapamiento_turnos EXCLUDE USING gist (
       tstzrange(fecha_hora_inicio, fecha_hora_fin, '[)') WITH &&
   ) WHERE (estado IN ('pendiente', 'confirmado'))
-  ```
+```
   Por que dos capas: el chequeo de la app puede fallar ante una condicion de
   carrera (dos requests simultaneos que pasan el chequeo al mismo tiempo).
   La constraint de Postgres es atomica y a prueba de eso — si igual se cuela un
@@ -82,14 +81,14 @@ Implementada en **dos capas**, a proposito:
 ### 3. Estados del turno y transiciones permitidas
 
 - Maquina de estados explicita en [`backend/src/utils/turnoRules.js`](backend/src/utils/turnoRules.js):
-  ```js
+```js
   const TRANSICIONES_VALIDAS = {
     pendiente:  ['confirmado', 'cancelado'],
     confirmado: ['completado', 'cancelado'],
     completado: [],
     cancelado: [],
   };
-  ```
+```
   `esTransicionValida(actual, nuevo)` es la unica funcion que decide si un
   cambio de estado esta permitido. Se usa en `turnoController.cambiarEstado()`
   (funcion interna compartida por `confirmar`, `completar` y `cancelar`), que
@@ -158,13 +157,11 @@ Implementada en **dos capas**, a proposito:
 
 ## TP1 — Git colaborativo
 
-> El trabajo práctico de Git colaborativo (rama, conflicto, PR, resolución) se hizo
-> originalmente en un repo separado: [`ingsoft3-tp01`](https://github.com/MariaRuival/ingsoft3-tp01).
-> A partir del TP2 se consolidó todo en este repo (`gestion-turnos`), según lo habilita
-> la guía de la cátedra (§3.3 del TP2: "repo nuevo, migrando decisiones.md/evidencias.md
-> y recreando las protecciones"). El historial de commits del TP1 queda en el repo
-> original; esta sección documenta esas mismas decisiones para que la entrega quede
-> unificada en un solo lugar.
+> El ejercicio de conflicto de Git de este TP se reprodujo directamente en este repositorio
+> (PR #5, rama `feature/titulo-b` → `main`), para que la defensa se navegue sobre un único
+> repo. El trabajo original del TP1 también existe en
+> [`ingsoft3-tp01`](https://github.com/MariaRuival/ingsoft3-tp01), usado antes de consolidar
+> todo acá siguiendo la guía del TP2 (§3.3).
 
 ### 1. Por qué Git no pudo resolver el conflicto solo
 
@@ -194,6 +191,10 @@ cambios de la otra, tal como pide la guía del TP.
   pero nunca se publicó — quedó solo la captura del borrador en `evidencias.md`.
   Se corrigió publicando el tag y la release correspondiente acá, en `gestion-turnos`
   (ver `evidencias.md`).
+- Al resolver el conflicto real (recreado en este repo), la primera edición con
+  `nano` dejó el título con contenido mezclado de las dos ramas en vez de reemplazarlo
+  limpio. Se corrigió resolviendo el conflicto desde el editor web de GitHub,
+  dejando una sola línea de título sin marcadores.
 
 ### 3. Declaración de uso de IA (TP1)
 
@@ -205,7 +206,8 @@ lugar dentro del repositorio: cada click, cada comando de terminal y cada decisi
 de contenido (por ejemplo, qué versión del título dejar al resolver el conflicto)
 los hice yo, verificando en cada paso que el resultado en GitHub fuera el esperado
 antes de seguir.
-  ---
+
+---
 
 ## TP2 — Contenedores
 
