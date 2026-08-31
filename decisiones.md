@@ -317,3 +317,77 @@ con los items asignados, el PR cerrando la tarea automáticamente) antes de segu
 El bug que reporté (`#13`, sobre la validación de horarios pasados en el frontend) es real: lo
 identifiqué mirando el código de `ClienteView.jsx` con ayuda de Claude, no lo inventé sin
 sustento — está pendiente de confirmar si además falta del lado del backend.
+
+---
+
+## TP4 — CI: Pipelines as Code
+
+### Estructura del pipeline: por qué esos jobs y por qué en paralelo
+
+El workflow (`.github/workflows/ci.yml`) tiene dos jobs, `build-backend` y `build-frontend`,
+uno por cada Dockerfile del TP2. Van en paralelo (cada uno en su propio runner) porque no
+dependen entre sí: construir la imagen del backend no necesita nada de la del frontend, y
+viceversa. Correrlos en paralelo en vez de en secuencia reduce el tiempo total del pipeline al
+tiempo del más lento de los dos, no a la suma de ambos.
+
+Los triggers son `pull_request` (hacia `main`) y `push` (a `main`). El primero es el que hace
+el trabajo real: verifica el cambio propuesto *antes* de que se integre, y es el que alimenta
+el gate del PR. El segundo deja una corrida de `main` después de cada merge — es la que lee el
+badge del README, y también la que deja el cache disponible para que cualquier PR nuevo lo
+aproveche desde su primera corrida (un PR solo ve el cache de su propia rama y el de la rama
+base, nunca el de otras ramas).
+
+### Qué cachea el pipeline y qué pasa si desaparece
+
+Se cachean las **capas de la imagen Docker** (`cache-from`/`cache-to: type=gha`), con un
+`scope` distinto por job (`backend` / `frontend`) para que no se pisen entre sí — sin ese
+scope, ambos jobs comparten el mismo estante de cache y se sobreescriben mutuamente.
+Confirmado en la segunda corrida del PR #17: todas las capas del backend (`deps 1/4` a
+`final 5/5`) salieron `CACHED`, porque entre la primera y la segunda corrida no cambió nada
+del código ni de las dependencias.
+
+Si el cache desaparece (la plataforma lo puede desalojar en cualquier momento, o tiene límite
+de tamaño), el pipeline no falla: simplemente reconstruye todo desde cero, más lento. El cache
+es una optimización, no una dependencia — si un pipeline *falla* al no tener cache disponible,
+eso en realidad significa que tenía una dependencia escondida en él, que es un bug aparte y no
+un problema del cache en sí.
+
+### Por qué el pipeline construye con el Dockerfile en vez de compilar por su cuenta
+
+El workflow no tiene ninguna línea de `npm install` ni `npm run build` propia: delega toda la
+construcción a los Dockerfiles del TP2 (`docker/build-push-action` con `context: ./backend` /
+`./frontend`). La razón es evitar tener **dos definiciones de build** que puedan divergir: si
+el pipeline compilara por su cuenta con comandos propios, podría estar verificando una
+compilación distinta de la que después efectivamente se empaqueta y se despliega. Con esta
+decisión, el pipeline verifica exactamente el mismo artefacto que se publicó a mano en el TP2
+y que se va a publicar automáticamente en TPs futuros — no una aproximación paralela.
+
+### Problemas encontrados y cómo los resolví
+
+- Al romper el build a propósito agregando una dependencia inexistente en
+  `backend/package.json`, la primera edición dejó una coma de más antes de la llave de cierre
+  de `dependencies`, lo que generaba un error `EJSONPARSE` (JSON inválido) en vez del error
+  que buscaba. Lo corregí ajustando la posición de la coma, y confirmé el error correcto
+  (`npm error 404 Not Found - 'paquete-que-no-existe-xyz123' is not in this registry`) tanto
+  en local (`docker build ./backend`) como en el pipeline, antes de abrir el PR de la
+  demostración.
+- Mi backend (Node/Express) no tiene paso de compilación ni empaquetado, así que romper el
+  código (por ejemplo, un `import` a un archivo inexistente) no hubiera roto el build: nadie
+  ejecuta el código durante un `docker build`. Por eso, siguiendo la tabla de la guía para
+  stacks "que ni compilan ni empaquetan", rompí una **dependencia** en vez del código.
+- Mis dos Pull Requests de la demostración (`feature/demo-gate` y `docs/muestra-del-freno`)
+  tuvieron que mantenerse abiertos al mismo tiempo para poder ver el botón "Update branch"
+  en acción (el efecto de `strict: true`): con un solo PR abierto, ese aviso nunca aparece
+  porque no hay ningún cambio nuevo en `main` contra el cual quedar desactualizado.
+
+### Declaración de uso de IA
+
+Usé Claude para guiarme paso a paso durante todo el TP4: explicarme la diferencia entre
+`push` y `pull_request` como triggers, redactar el workflow completo (los dos jobs, el cache
+con `scope` separado), guiarme en la configuración del gate en el Ruleset (en vez de la
+Branch Protection clásica, porque mi repo usa Rulesets desde el TP1), decidir conmigo la
+forma correcta de romper el build para mi stack específico (Node/Express sin build), y
+ayudarme a redactar este `decisiones.md`. Verifiqué cada paso ejecutándolo yo misma:
+confirmé el build roto en mi máquina antes de subirlo, miré los logs reales de cada corrida
+en la pestaña Actions para confirmar el `CACHED`, y revisé en el PR que los checks realmente
+bloquearan el botón de merge antes de dar por bueno cada checkpoint.
