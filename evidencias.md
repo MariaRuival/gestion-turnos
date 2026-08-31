@@ -9,6 +9,10 @@
 ### Marcadores del conflicto
 <img width="3024" height="1454" alt="image" src="https://github.com/user-attachments/assets/c9d4873d-f5e7-45a4-8215-ba09f9adf153" />
 
+### Release v1.0.0 publicada
+<img width="2560" height="1450" alt="image" src="<img width="1511" height="728" alt="image" src="https://github.com/user-attachments/assets/0280e248-23c4-499c-8c58-ef3548635d85" />
+" />
+
 ---
 
 ## TP2 — Contenedores
@@ -70,4 +74,3 @@ los estáticos compilados (+0.3MB sobre la base). En el backend la diferencia es
 porque no hay paso de compilación que descartar — ver el detalle en `decisiones.md`.
 
 <img width="1568" height="98" alt="image" src="https://github.com/user-attachments/assets/c1cdee5a-5e49-4515-8668-3d0bfc4be57a" />
-
