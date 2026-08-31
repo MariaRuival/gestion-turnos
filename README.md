@@ -1,5 +1,7 @@
 # Gestión de Turnos — Sistema de reservas
 
+[![CI](https://github.com/MariaRuival/gestion-turnos/actions/workflows/ci.yml/badge.svg)](https://github.com/MariaRuival/gestion-turnos/actions/workflows/ci.yml)
+
 Aplicacion web para gestionar turnos de un negocio chico (peluqueria, consultorio, etc.).
 Un cliente reserva turnos eligiendo servicio(s), fecha y hora; un admin ve todos los
 turnos y los confirma o marca como completados.
