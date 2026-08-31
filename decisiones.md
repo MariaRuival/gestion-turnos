@@ -252,3 +252,68 @@ El frontend usa `VITE_API_URL=http://localhost:4000/api`, resuelto en tiempo de 
 ### Uso de IA
 
 El scaffold inicial de la aplicación (backend, frontend, `docker-compose.yml` original de una sola etapa para el backend, `Dockerfile` del frontend ya multi-stage) fue generado con asistencia de Claude Code, verificado manualmente end-to-end antes de este TP (instalación de dependencias, seed, pruebas de API con curl, build del frontend). Para el TP2 específicamente, se usó IA para: identificar que el Dockerfile del backend no era multi-stage y reescribirlo, redactar el `docker-compose.registry.yml`, y guiar el proceso de publicación en ghcr.io (incluyendo el diagnóstico del error de proxy). Todo se ejecutó y verificó a mano, paso a paso, no se copió sin probar.
+
+
+---
+
+## TP3 — Planificación y trazabilidad
+
+### 1. Duración del sprint y por qué
+
+Elegí **1 semana** de duración para el sprint (campo Iteration del Project). La razón es alinearlo
+con el ritmo real de la cursada: los TPs de la materia se entregan semana a semana, así que un
+sprint corto me permite detectar rápido si algo no está saliendo bien y ajustar en el siguiente,
+en vez de esperar dos o tres semanas para darme cuenta. Con un sprint más largo, un problema de
+planificación (por ejemplo, subestimar una tarea) tarda más en hacerse visible.
+
+### 2. Límite de trabajo en progreso y por qué
+
+Configuré el límite en **2** para la columna "In Progress", siguiendo la regla de arranque de la
+guía: la cantidad de personas trabajando (yo, una sola) más uno. El "más uno" es la válvula para
+cuando algo queda esperando (por ejemplo, una revisión propia antes de mergear) y necesito avanzar
+en otra cosa sin quedar bloqueada. Si en la práctica nunca llego a alcanzar el límite, es señal de
+que está demasiado alto para mi ritmo real de trabajo individual; si lo alcanzo todo el tiempo y me
+frena, lo subiría a 3.
+
+### 3. Diagnóstico de la historia mal escrita
+
+La historia de prueba fue: *"Como desarrollador quiero crear la tabla usuarios para guardar los
+datos"*. Está mal escrita porque el "desarrollador" no es un usuario del sistema: es quien
+construye el sistema. Una historia de usuario tiene que expresar valor para alguien que **recibe**
+el producto (un cliente, un admin), no para quien lo programa. Si le saco el molde "Como... quiero...
+para...", lo que queda ("crear la tabla usuarios") es una tarea técnica de infraestructura, no un
+incremento de valor observable — es una tarea disfrazada de historia.
+
+Cómo la reescribiría: identificando primero qué usuario real se beneficia de que exista esa tabla.
+Por ejemplo: *"Como cliente quiero poder registrarme con mi email y contraseña para poder reservar
+turnos"*. Con esa historia sí hay un rol real y un beneficio real, y "crear la tabla usuarios" pasa
+a ser una de las tareas técnicas *dentro* de esa historia, no la historia en sí.
+
+### 4. Problemas encontrados y cómo los resolví
+
+- Al crear el issue del bug con `gh issue create --body '...'` directo en la terminal, el texto
+  multilínea con comillas cortó el comando a mitad de camino y la terminal quedó esperando el
+  cierre de la comilla (prompt `quote>`). Lo resolví con `Ctrl+C` para cancelar, y después usando
+  `--body-file` apuntando a un archivo creado con `cat > archivo.md << 'EOF' ... EOF`, que es más
+  robusto para contenido largo con saltos de línea.
+- Mi versión de `gh` (2.90) no tiene el flag `--add-sub-issue` (existe desde la 2.94), así que la
+  vinculación de la jerarquía (épica→historia, historia→tareas) la hice por la web con
+  "Add existing issue" en vez de por comando, tal como la guía prevé como alternativa.
+- Al buscar el botón para agregar un campo nuevo (el de Iteration/Sprint), me confundí entre la
+  vista de tablero (Board) y la vista de tabla (Table): el `+` del board agrega tarjetas nuevas,
+  pero el campo custom se crea desde el `+` al final de las columnas en la vista de tabla. Tuve que
+  scrollear la tabla hacia la derecha para encontrarlo, porque quedaba fuera de la pantalla visible.
+
+### 5. Declaración de uso de IA
+
+Usé Claude para guiarme paso a paso durante todo el TP3: explicarme la jerarquía épica/historia/
+tarea, decirme los comandos exactos de `gh` para crear labels e issues, guiarme en la creación y
+configuración del Project (visibilidad pública, campo Iteration, WIP limit) y ayudarme a redactar
+este `decisiones.md`. También leyó el enunciado completo del TP3 desde el repo de la cátedra para
+asegurarse de que la jerarquía, los criterios de aceptación y el bug reprodujeran exactamente lo
+que pide la guía. Yo ejecuté cada comando en mi propia terminal y verifiqué en GitHub, después de
+cada paso, que el resultado fuera el esperado (el issue creado, la jerarquía navegable, el sprint
+con los items asignados, el PR cerrando la tarea automáticamente) antes de seguir con el siguiente.
+El bug que reporté (`#13`, sobre la validación de horarios pasados en el frontend) es real: lo
+identifiqué mirando el código de `ClienteView.jsx` con ayuda de Claude, no lo inventé sin
+sustento — está pendiente de confirmar si además falta del lado del backend.
