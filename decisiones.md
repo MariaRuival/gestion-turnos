@@ -154,7 +154,57 @@ Implementada en **dos capas**, a proposito:
   y 4 como funciones puras (sin `req`/`res`, sin SQL) para poder leerlas o
   testearlas de forma aislada, sin tener que levantar un servidor HTTP.
 
+---
 
+## TP1 — Git colaborativo
+
+> El trabajo práctico de Git colaborativo (rama, conflicto, PR, resolución) se hizo
+> originalmente en un repo separado: [`ingsoft3-tp01`](https://github.com/MariaRuival/ingsoft3-tp01).
+> A partir del TP2 se consolidó todo en este repo (`gestion-turnos`), según lo habilita
+> la guía de la cátedra (§3.3 del TP2: "repo nuevo, migrando decisiones.md/evidencias.md
+> y recreando las protecciones"). El historial de commits del TP1 queda en el repo
+> original; esta sección documenta esas mismas decisiones para que la entrega quede
+> unificada en un solo lugar.
+
+### 1. Por qué Git no pudo resolver el conflicto solo
+
+Git fusiona automáticamente cuando dos ramas modifican partes distintas de un archivo.
+En este caso, tanto la rama `feature/titulo-a` como `feature/titulo-b` modificaron
+la **misma línea** (el título del README), cada una con un contenido distinto
+("versión A" vs "versión B"). Git no tiene forma de saber cuál de las dos versiones
+es la correcta — no es una decisión técnica, es una decisión de contenido — así que
+me delegó la resolución a mí marcando el archivo con los marcadores de conflicto.
+
+Para que este conflicto nunca hubiera aparecido, la rama B debería haberse creado
+**después** de mergear la rama A (partiendo de un `main` ya actualizado), o directamente
+no debería haber tocado esa misma línea. En este caso el conflicto fue intencional:
+lo fabriqué a propósito haciendo que ambas ramas salieran de `main` sin conocer los
+cambios de la otra, tal como pide la guía del TP.
+
+### 2. Qué problemas encontré y cómo los solucioné
+
+- Al crear el `.gitignore` por primera vez con `cat > .gitignore << 'EOF' ... EOF`,
+  el heredoc no se ejecutó bien al pegarlo en la terminal (probablemente se cortó
+  al copiar/pegar) y el archivo no se creó. Lo resolví usando `nano .gitignore`
+  en su lugar, que es más robusto para pegar contenido multilínea.
+- Después de mergear el PR de la rama `feature/titulo-a`, me olvidé de borrar esa
+  rama (sí borré `feature/titulo-b`). Quedó visible en Settings → Branches, y la
+  borré manualmente desde ahí una vez que lo noté.
+- El tag `v1.0.0` original se preparó como borrador de release en `ingsoft3-tp01`
+  pero nunca se publicó — quedó solo la captura del borrador en `evidencias.md`.
+  Se corrigió publicando el tag y la release correspondiente acá, en `gestion-turnos`
+  (ver `evidencias.md`).
+
+### 3. Declaración de uso de IA (TP1)
+
+Usé Claude para que me guíe paso a paso durante todo el TP1: explicarme qué pedía
+cada tarea de la guía, indicarme en qué pantalla de GitHub hacer cada configuración
+(protección de rama, PRs, resolución del conflicto, tag y release), y ayudarme a
+redactar este mismo archivo de decisiones. No generó código ni resolvió nada en mi
+lugar dentro del repositorio: cada click, cada comando de terminal y cada decisión
+de contenido (por ejemplo, qué versión del título dejar al resolver el conflicto)
+los hice yo, verificando en cada paso que el resultado en GitHub fuera el esperado
+antes de seguir.
   ---
 
 ## TP2 — Contenedores
