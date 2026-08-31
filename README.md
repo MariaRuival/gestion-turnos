@@ -140,3 +140,4 @@ desde variables de entorno.
 - **Error de conexion a Postgres**: confirma que el servicio/proceso de Postgres este
   corriendo y que `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` en `backend/.env`
   coincidan con tu instancia.
+
