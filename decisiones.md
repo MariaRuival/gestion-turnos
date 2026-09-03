@@ -211,6 +211,19 @@ antes de seguir.
 
 ## TP2 — Contenedores
 
+### Por qué esta app (los 4 criterios de la guía)
+
+- **¿Buildea y corre local sin magia?** Sí — probado desde antes del TP2 con `npm install` +
+  Postgres en un contenedor suelto, sin pasos ocultos.
+- **¿Tiene o se le pueden agregar tests?** Sí — 5 reglas de negocio bien delimitadas
+  (no-solapamiento, cálculo de totales, máquina de estados, ventana de 24hs, aislamiento por
+  usuario), cada una en una función separada en `turnoRules.js`, lo que las hace fáciles de
+  testear de forma aislada en el TP5.
+- **¿La entiendo lo suficiente para modificarla?** Sí — la escribí guiando a la IA paso a paso
+  (no la generé de un tirón), y puedo explicar y modificar en vivo cualquiera de las 5 reglas.
+- **Tamaño:** 3 pantallas (Login, Cliente, Admin), sin dependencias exóticas más que Postgres.
+  No crece más de lo necesario para cumplir el objetivo del semestre.
+
 ### Imágenes base elegidas
 
 | Servicio | Etapa de build | Etapa final | Por qué |
@@ -236,6 +249,29 @@ antes de seguir.
 - El volumen nombrado `pgdata` (declarado en `docker-compose.yml`) es lo único con estado real: sobrevive a `docker compose down` y solo se borra con `docker compose down -v`. Probado explícitamente (ver `evidencias.md`).
 - Backend y frontend son completamente stateless — cualquier dato que "recuerden" en memoria se pierde al recrear el contenedor, por diseño: toda la persistencia vive en Postgres.
 - El schema (`backend/src/db/schema.sql`) se monta como bind mount de solo lectura en `docker-entrypoint-initdb.d`, así que solo se aplica la primera vez que se crea el volumen — si se cambia el schema después, hay que recrear el volumen (`down -v`) para que tome efecto.
+
+### Cómo se encuentran los servicios
+
+Los tres contenedores (`postgres`, `backend`, `frontend`) están en la red interna que crea
+`docker compose` automáticamente, donde cada uno es alcanzable por su **nombre de servicio**
+vía el DNS embebido de Docker. El backend nunca usa `localhost` ni una IP para llegar a la
+base: usa `PGHOST=postgres` (el nombre del servicio en el `docker-compose.yml`), y Docker
+resuelve ese nombre a la IP interna correcta sin que yo tenga que saberla ni que sea estable
+entre reinicios. El frontend es la excepción de siempre (§2.6 de la guía): al ser una SPA, su
+JavaScript corre en el **browser del usuario**, fuera de la red de compose — por eso no puede
+usar `http://backend:4000` y en su lugar usa la URL absoluta publicada en el host
+(`http://localhost:4000`, ver la decisión de abajo).
+
+### Healthcheck vs depends_on
+
+`depends_on` por sí solo (lo que usa `frontend` hacia `backend`) solo garantiza el **orden de
+arranque**: que el contenedor de Postgres haya arrancado, no que ya acepte conexiones. Por eso
+`backend` usa `depends_on: postgres: condition: service_healthy` en vez de un `depends_on`
+simple: el `healthcheck` de Postgres (`pg_isready`) confirma que la base está *lista para
+recibir queries*, y recién ahí Docker arranca el backend. Sin esto, el backend podría
+arrancar antes de que Postgres esté aceptando conexiones y morir en el primer intento de
+conectarse — un problema típico que "a veces pasa y a veces no", según qué tan rápido levante
+cada contenedor esa vez.
 
 ### Decisión: URL absoluta en el frontend (no proxy de nginx)
 
