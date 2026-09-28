@@ -427,3 +427,40 @@ ayudarme a redactar este `decisiones.md`. Verifiqué cada paso ejecutándolo yo 
 confirmé el build roto en mi máquina antes de subirlo, miré los logs reales de cada corrida
 en la pestaña Actions para confirmar el `CACHED`, y revisé en el PR que los checks realmente
 bloquearan el botón de merge antes de dar por bueno cada checkpoint.
+
+## Fix: URL de la API horneada a localhost en el build
+
+**Problema encontrado**: `VITE_API_URL` se resuelve en build-time, y su default
+(`http://localhost:4000/api`) quedaba literalmente incrustado en el bundle JS.
+Funcionaba perfecto en mi propia máquina (browser y backend comparten
+`localhost`), pero fallaba en silencio —fetch rechazado, sin error visible más
+allá de la consola— para cualquiera que abriera la app desde otro host: LAN,
+un dominio real, o el profesor conectándose en vivo en la defensa de P1.
+
+**Cómo lo detecté**: revisando con Claude Code tras una observación del
+profesor en la mesa de P1 sobre algo "raro" relacionado a nginx. Reproduje el
+síntoma accediendo al frontend por la IP de LAN de mi máquina en vez de
+`localhost` y viendo el bundle seguir apuntando a `localhost:4000` con
+`curl`.
+
+**Solución**: `proxy_pass` en `nginx.conf` (`/api/` → `http://backend:4000/api/`,
+resuelto por DNS interno de Docker Compose) para que el frontend le pegue
+siempre a `/api` relativo, mismo origin, sin importar el host. El mismo proxy
+se agregó en `vite.config.js` (con `loadEnv`) para no romper `npm run dev` /
+`npm run preview`, que no pasan por nginx.
+
+**Cambios**: `frontend/src/api/client.js` (default a `/api`),
+`frontend/Dockerfile` y `docker-compose.yml` (`VITE_API_URL` default a `/api`),
+`.env.example` (raíz y frontend), `vite.config.js` (proxy de dev), y
+`frontend/nginx.conf` (proxy + `Cache-Control`: `no-cache` en `index.html`,
+`public, max-age=31536000, immutable` en `/assets/`, este último un hallazgo
+secundario del mismo audit).
+
+**Verificado**: `nginx -t` OK, bundle sin `localhost:4000`, request real desde
+IP de LAN a `/api/servicios` respondiendo por el proxy, login end-to-end desde
+esa misma IP, `/admin` directo por URL sigue en 200 (SPA fallback intacto).
+
+**IA**: usé Claude Code para auditar `nginx.conf`, el Dockerfile del frontend
+y el routing, reproducir el bug con `curl`/`docker compose`, e implementar el
+fix. Verifiqué cada cambio corriendo los comandos de arriba yo misma antes de
+commitear.

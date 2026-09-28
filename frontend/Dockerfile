@@ -9,9 +9,11 @@ RUN npm install --no-audit --no-fund
 COPY . .
 
 # Vite "hornea" las variables VITE_* en el bundle en tiempo de build, no en
-# runtime. Como el navegador (fuera de Docker) es quien hace los fetch a la
-# API, por defecto apunta al puerto de backend publicado en localhost.
-ARG VITE_API_URL=http://localhost:4000/api
+# runtime. Por defecto queda relativa (/api): el navegador le pega al mismo
+# origin desde el que cargo la pagina y nginx la reenvia al backend (ver
+# nginx.conf). Solo hace falta pisar esto con una URL absoluta si el backend
+# se sirve desde otro origin.
+ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 

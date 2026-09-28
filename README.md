@@ -93,7 +93,7 @@ En otra terminal:
 
 ```bash
 cd frontend
-cp .env.example .env   # solo necesario si el backend no corre en http://localhost:4000
+cp .env.example .env   # solo necesario si el backend no corre en http://localhost:4000 (VITE_BACKEND_URL)
 npm install
 npm run dev
 ```
@@ -116,7 +116,9 @@ Ningun secreto ni cadena de conexion esta hardcodeado: todo se lee via `dotenv`
 desde variables de entorno.
 
 - `backend/.env.example` → conexion a Postgres, puerto de la API, `JWT_SECRET`, CORS.
-- `frontend/.env.example` → `VITE_API_URL`, la URL de la API que consume el navegador.
+- `frontend/.env.example` → `VITE_API_URL` (relativa, `/api`, por defecto) y
+  `VITE_BACKEND_URL`, el destino del proxy de Vite en `npm run dev`/`npm run preview`
+  cuando el backend no corre en `http://localhost:4000`.
 - `.env.example` (raiz) → variables que usa `docker-compose.yml` para levantar los 3 servicios.
 
 ## API (resumen)
@@ -137,8 +139,10 @@ desde variables de entorno.
 
 - **El backend no arranca / "Faltan variables de entorno obligatorias"**: falta `JWT_SECRET`
   en `backend/.env`. Copia `backend/.env.example` a `.env` y completa los valores.
-- **El frontend no encuentra la API**: revisa `VITE_API_URL` en `frontend/.env` (o en el
-  `.env` de la raiz si usas Docker) — debe apuntar al puerto publicado del backend.
+- **El frontend no encuentra la API**: `VITE_API_URL` es relativa (`/api`) por defecto,
+  asi que en Docker depende de que el `location /api/` de `frontend/nginx.conf` este
+  reenviando al servicio `backend`; fuera de Docker (`npm run dev`/`npm run preview`)
+  depende de `VITE_BACKEND_URL` en `frontend/.env` apuntando al puerto real del backend.
 - **Error de conexion a Postgres**: confirma que el servicio/proceso de Postgres este
   corriendo y que `PGHOST`/`PGPORT`/`PGUSER`/`PGPASSWORD`/`PGDATABASE` en `backend/.env`
   coincidan con tu instancia.
