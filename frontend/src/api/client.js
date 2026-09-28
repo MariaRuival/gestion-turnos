@@ -1,4 +1,7 @@
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api';
+// Relativa por defecto: el navegador le pega a /api en el mismo origin desde
+// el que cargo la pagina (nginx la reenvia al backend, ver frontend/nginx.conf).
+// Solo hace falta una URL absoluta si el backend vive en otro origin.
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 function getToken() {
   return localStorage.getItem('turnos_token');
