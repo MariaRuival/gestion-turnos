@@ -464,3 +464,31 @@ esa misma IP, `/admin` directo por URL sigue en 200 (SPA fallback intacto).
 y el routing, reproducir el bug con `curl`/`docker compose`, e implementar el
 fix. Verifiqué cada cambio corriendo los comandos de arriba yo misma antes de
 commitear.
+
+
+## TP5 — Suite de unit tests del backend
+
+**Qué testeé y por qué**: las 4 reglas de negocio de `turnoRules.js` y el controlador
+`turnoController.crear` — son las que más duelen si se rompen: un bug en el cálculo de
+totales cobra mal, uno en la máquina de estados permite transiciones inválidas, uno en
+el solapamiento permite doble-reserva.
+
+- `calcularTotales` (regla #2): suma de duración/precio, incluido el caso de que
+  Postgres devuelve `NUMERIC` como string (probé con precios tipo `'1500.50'`).
+- `esTransicionValida` (regla #3): parametrizado con `it.each` sobre las 4 transiciones
+  válidas y 5 inválidas, más un test que compara contra `TRANSICIONES_VALIDAS` completo
+  para que no se desactualice si se agrega una transición nueva al código.
+- `puedeCancelarPorTiempo` (regla #4): 25hs (permite), exactamente 24hs — el borde —
+  (permite), 23hs (rechaza).
+- `turnoController.crear` / solapamiento (regla #1): **test con mock**, mockeando
+  `turnoModel` y `servicioModel`. No sólo devuelvo datos fijos (eso sería un stub):
+  verifico la interacción — `expect(turnoModel.crear).not.toHaveBeenCalled()` cuando
+  hay solapamiento, para probar que el turno nunca se intenta crear.
+
+**Total**: 17 tests (mínimo pedido: 8).
+
+**IA**: usé Claude Code para generar los archivos de test a partir de un plan que
+definimos juntas (qué 4 reglas, qué test lleva el mock). Revisé la salida de
+`npm test` y entendí cada assert antes de mergear.
+
+PR: <https://github.com/MariaRuival/gestion-turnos/pull/24>
