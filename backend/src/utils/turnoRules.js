@@ -40,10 +40,34 @@ function calcularTotales(servicios) {
   );
 }
 
+function urgenciaDeTurno(turno, ahora = new Date()) {
+  if (!turno || !turno.fechaHoraInicio) {
+    return 'sin-fecha';
+  }
+  if (turno.estado === 'cancelado' || turno.estado === 'completado') {
+    return 'cerrado';
+  }
+  const horas = (new Date(turno.fechaHoraInicio) - ahora) / 3600000;
+  if (horas < 0) {
+    return 'pasado';
+  }
+  if (horas < 24) {
+    return 'hoy';
+  }
+  if (horas < 24 * 7) {
+    return 'esta-semana';
+  }
+  if (horas < 24 * 30) {
+    return 'este-mes';
+  }
+  return 'lejano';
+}
+
 module.exports = {
   HORAS_MINIMAS_PARA_CANCELAR,
   TRANSICIONES_VALIDAS,
   esTransicionValida,
   puedeCancelarPorTiempo,
   calcularTotales,
+  urgenciaDeTurno,
 };
