@@ -17,7 +17,7 @@ export default defineConfig({
     // Solo se activa con "npm run test:coverage" (flag --coverage).
     coverage: {
       provider: 'v8',
-      reporter: ['text', 'html'],
+      reporter: ['text', 'html', 'lcov', 'json-summary'],
       // Por ahora solo el archivo con tests; si se miden componentes es
       // una decision aparte.
       include: ['src/api/client.js'],

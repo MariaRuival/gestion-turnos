@@ -9,7 +9,7 @@
     "dev": "node --watch src/server.js",
     "seed": "node src/db/seed.js",
     "test": "jest",
-    "test:coverage": "jest --coverage"
+    "test:coverage": "jest --coverage --coverageDirectory=${COVERAGE_DIR:-coverage}"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
