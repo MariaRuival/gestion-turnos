@@ -14,5 +14,21 @@ export default defineConfig({
     env: {
       VITE_API_URL: '/api',
     },
+    // Solo se activa con "npm run test:coverage" (flag --coverage).
+    coverage: {
+      provider: 'v8',
+      reporter: ['text', 'html'],
+      // Por ahora solo el archivo con tests; si se miden componentes es
+      // una decision aparte.
+      include: ['src/api/client.js'],
+      // Piso definido sobre la medicion real (100% lines/stmts, 87.5% branches,
+      // 81.81% funcs): si el coverage baja de aca, "npm run test:coverage" falla.
+      thresholds: {
+        lines: 90,
+        statements: 90,
+        functions: 70,
+        branches: 75,
+      },
+    },
   },
 });

@@ -538,3 +538,26 @@ met: 24.4%`). El archivo quedó con el umbral real.
 
 **Reporte de rama**: reportado arriba (18.64%) aunque el umbral efectivo principal esté pensado
 sobre línea — tal como pide el enunciado.
+
+## TP5 — Coverage del frontend y umbral que rompe el build
+
+**Scope**: solo `src/api/client.js` — es el único archivo sin DOM del frontend, que es
+justo el tipo de test que pide esta parte del TP. Los componentes React quedan fuera de
+esta cuenta de coverage, no porque falte cubrirlos sino porque requieren testing con DOM,
+una categoría distinta a la que pide este TP.
+
+**Medición real**: 100% líneas, 100% statements, 81.81% funciones, 87.5% ramas. Las dos
+ramas que faltan: el fallback `|| '/api'` de la URL base (nunca se ejecuta porque el
+entorno de test fija `VITE_API_URL`) y el mensaje de error genérico `Error ${res.status}`
+(solo se usa cuando el backend responde sin campo `error` en el body, caso no cubierto).
+Las funciones que faltan: `api.registro` y `api.crearTurno`, no llamadas por ningún test.
+
+**Umbral elegido**: 90% líneas / 90% statements / 70% funciones / 75% ramas — por debajo
+de la medición real en los cuatro casos. No cerré las dos ramas que faltan para llegar a
+100%: ya supero el mínimo de 4 tests pedido, y el objetivo de esta tarea es que el umbral
+frene retrocesos, no maximizar el número.
+
+**Verificación del freno**: corrí `vitest run --coverage` con el umbral real (pasa, exit
+code 0) y con `--coverage.thresholds.functions=95` pisado por línea de comandos sin tocar
+el archivo (falla, exit code 1, mensaje exacto: `ERROR: Coverage for functions (81.81%)
+does not meet global threshold (95%)`). El archivo quedó con el umbral real (90/90/70/75).
