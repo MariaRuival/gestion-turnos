@@ -465,99 +465,145 @@ y el routing, reproducir el bug con `curl`/`docker compose`, e implementar el
 fix. Verifiqué cada cambio corriendo los comandos de arriba yo misma antes de
 commitear.
 
-
-## TP5 — Suite de unit tests del backend
-
-**Qué testeé y por qué**: las 4 reglas de negocio de `turnoRules.js` y el controlador
-`turnoController.crear` — son las que más duelen si se rompen: un bug en el cálculo de
-totales cobra mal, uno en la máquina de estados permite transiciones inválidas, uno en
-el solapamiento permite doble-reserva.
-
-- `calcularTotales` (regla #2): suma de duración/precio, incluido el caso de que
-  Postgres devuelve `NUMERIC` como string (probé con precios tipo `'1500.50'`).
-- `esTransicionValida` (regla #3): parametrizado con `it.each` sobre las 4 transiciones
-  válidas y 5 inválidas, más un test que compara contra `TRANSICIONES_VALIDAS` completo
-  para que no se desactualice si se agrega una transición nueva al código.
-- `puedeCancelarPorTiempo` (regla #4): 25hs (permite), exactamente 24hs — el borde —
-  (permite), 23hs (rechaza).
-- `turnoController.crear` / solapamiento (regla #1): **test con mock**, mockeando
-  `turnoModel` y `servicioModel`. No sólo devuelvo datos fijos (eso sería un stub):
-  verifico la interacción — `expect(turnoModel.crear).not.toHaveBeenCalled()` cuando
-  hay solapamiento, para probar que el turno nunca se intenta crear.
-
-**Total**: 17 tests (mínimo pedido: 8).
-
-**IA**: usé Claude Code para generar los archivos de test a partir de un plan que
-definimos juntas (qué 4 reglas, qué test lleva el mock). Revisé la salida de
-`npm test` y entendí cada assert antes de mergear.
-
-PR: <https://github.com/MariaRuival/gestion-turnos/pull/24>
+---
 
 
-## TP5 — Suite de unit tests del frontend
+## TP5 — Testing y calidad
 
-[... iba a escribir la parte de los 9 tests de Vitest, pero eso lo armamos
-en el próximo paso junto con esto]
+### 1. Qué testeé y por qué
 
-**Problema encontrado**: el pipeline empezó a fallar de forma intermitente con
-`429 Too Many Requests` de Docker Hub al hacer `FROM node:20-alpine` — el límite
-de pulls anónimos compartido entre todos los runners de GitHub Actions. Solución:
-agregar `docker/login-action` en ambos jobs (`build-backend` y `build-frontend`)
-con una cuenta gratuita de Docker Hub (secrets `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`),
-lo que mueve las pulls al límite autenticado por cuenta en vez del pool anónimo
-saturado. No está relacionado al contenido del TP5 en sí, es un fix de
-infraestructura del pipeline del TP4.
+Elegí testear las 4 reglas de negocio de `turnoRules.js` y el controlador `turnoController.crear`
+(regla #1, solapamiento) — son las que más duelen si se rompen: un bug en el cálculo de totales
+cobra mal, uno en la máquina de estados permite transiciones inválidas, uno en el solapamiento
+permite doble-reserva.
 
-## TP5 — Coverage del backend y umbral que rompe el build
+- `calcularTotales` (regla #2): suma de duración/precio, incluido el caso de que Postgres
+  devuelve `NUMERIC` como string (probé con precios tipo `'1500.50'`).
+- `esTransicionValida` (regla #3): parametrizado con `it.each` sobre las 4 transiciones válidas y
+  5 inválidas, más un test que compara contra `TRANSICIONES_VALIDAS` completo para que no se
+  desactualice si se agrega una transición nueva al código.
+- `puedeCancelarPorTiempo` (regla #4): 25hs (permite), exactamente 24hs — el borde — (permite),
+  23hs (rechaza).
+- `turnoController.crear` / solapamiento (regla #1): **test con mock**, mockeando `turnoModel` y
+  `servicioModel`. No solo devuelvo datos fijos (eso sería un stub): verifico la interacción —
+  `expect(turnoModel.crear).not.toHaveBeenCalled()` cuando hay solapamiento, para probar que el
+  turno nunca se intenta crear.
 
-**Qué queda adentro de la cuenta y por qué**: `controllers/`, `middleware/auth.js` y `utils/`.
-Dejé **afuera** `server.js`, `routes/*`, `app.js`, `middleware/errorHandler.js` (arranque y wiring
-de Express, sin reglas de negocio — el enunciado los marca explícitamente como excluibles) y
-`config/`, `db/`, `models/` (consultas SQL puras, ya documentado en la sección de organización
-general que no tienen lógica de negocio).
+Total: 17 tests de backend (mínimo pedido: 8).
 
-**Importante**: `middleware/auth.js` se queda **adentro** aunque hoy esté en 0%, porque
-`requiereRol` implementa la parte administrativa de la regla de negocio #5 (el comentario del
-código lo dice textual). Excluirlo solo porque no tiene tests sería la trampa que señala el
-enunciado — esconder lógica no testeada en vez de medir lo que importa.
+Del lado del frontend testeé `src/api/client.js` — el único archivo sin DOM con lógica propia —
+mockeando `fetch` y `localStorage` con `vi.stubGlobal`: un test de `login`, uno parametrizado
+sobre 6 métodos del `api` (`it.each`), uno de caso de error (mensaje exacto que viene del backend),
+y uno de mock que verifica que el header `Authorization: Bearer <token>` se arma bien. Total: 9
+tests (mínimo pedido: 4).
 
-**Medición real** (antes de definir el umbral): 24.4% líneas, 24.21% statements, 23.8% funciones,
-18.64% ramas. Lo que más pesa en contra: `authController.js` (87 líneas, 0%) y `middleware/auth.js`
-(0%) — login, registro y verificación de JWT quedaron fuera del alcance de tests que prioricé en
-este TP (me concentré en las reglas de turnos).
+PRs: [#24](https://github.com/MariaRuival/gestion-turnos/pull/24) (backend),
+[#26](https://github.com/MariaRuival/gestion-turnos/pull/26) (frontend).
 
-**Umbral elegido**: 20% líneas / 20% statements / 20% funciones / 15% ramas — por debajo de mi
-medición real (margen de ~4 puntos en línea/statements, ~3.6 en ramas), para que el freno exista de
-verdad (se rompe si alguien borra un test) sin ser una meta inalcanzable que yo misma tendría que
-esquivar. Para subirlo, el paso obvio es sumar tests sobre `authController.js` y `auth.js`.
+### 2. Qué queda adentro de la cuenta de cobertura, y qué no
 
-**Verificación del freno**: corrí `jest --coverage` con el umbral real (pasa, exit code 0) y con
-`--coverageThreshold` pisado temporalmente a 50% en líneas vía línea de comandos, sin tocar el
-archivo (falla, exit code 1, mensaje exacto: `Jest: "global" coverage threshold for lines (50%) not
-met: 24.4%`). El archivo quedó con el umbral real.
+**Backend** — adentro: `controllers/`, `middleware/auth.js` y `utils/`. Afuera: `server.js`,
+`routes/*`, `app.js`, `middleware/errorHandler.js` (arranque y wiring de Express, sin reglas de
+negocio — el enunciado los marca explícitamente como excluibles) y `config/`, `db/`, `models/`
+(consultas SQL puras, ya documentado arriba en "Organización general": sin lógica de negocio).
 
-**Reporte de rama**: reportado arriba (18.64%) aunque el umbral efectivo principal esté pensado
-sobre línea — tal como pide el enunciado.
+Importante: `middleware/auth.js` se queda **adentro** aunque hoy esté en 0%, porque `requiereRol`
+implementa la parte administrativa de la regla #5 (el comentario del código lo dice textual).
+Excluirlo solo porque no tiene tests sería la trampa que señala el enunciado — esconder lógica no
+testeada en vez de medir lo que importa.
 
-## TP5 — Coverage del frontend y umbral que rompe el build
+**Frontend** — adentro: solo `src/api/client.js`. Los componentes React quedan fuera de esta
+cuenta, no porque falte cubrirlos sino porque requieren testing con DOM, una categoría distinta a
+la que pide este TP (el enunciado la deja como "opcional avanzado", fuera de alcance acá).
 
-**Scope**: solo `src/api/client.js` — es el único archivo sin DOM del frontend, que es
-justo el tipo de test que pide esta parte del TP. Los componentes React quedan fuera de
-esta cuenta de coverage, no porque falte cubrirlos sino porque requieren testing con DOM,
-una categoría distinta a la que pide este TP.
+### 3. Umbral de coverage: el número, la métrica y por qué
 
-**Medición real**: 100% líneas, 100% statements, 81.81% funciones, 87.5% ramas. Las dos
-ramas que faltan: el fallback `|| '/api'` de la URL base (nunca se ejecuta porque el
-entorno de test fija `VITE_API_URL`) y el mensaje de error genérico `Error ${res.status}`
-(solo se usa cuando el backend responde sin campo `error` en el body, caso no cubierto).
-Las funciones que faltan: `api.registro` y `api.crearTurno`, no llamadas por ningún test.
+**Backend** — medición real antes de definir el umbral: 24.4% líneas, 24.21% statements, 23.8%
+funciones, **18.64% ramas**. Lo que más pesa en contra: `authController.js` (87 líneas, 0%) y
+`middleware/auth.js` (0%) — login, registro y verificación de JWT quedaron fuera del alcance de
+tests que prioricé en este TP (me concentré en las reglas de turnos). Umbral elegido: **20%
+líneas / 20% statements / 20% funciones / 15% ramas** — por debajo de la medición real en los
+cuatro casos (margen de ~4 puntos en línea/statements, ~3.6 en ramas), para que el freno exista de
+verdad sin ser una meta que yo misma tendría que esquivar.
 
-**Umbral elegido**: 90% líneas / 90% statements / 70% funciones / 75% ramas — por debajo
-de la medición real en los cuatro casos. No cerré las dos ramas que faltan para llegar a
-100%: ya supero el mínimo de 4 tests pedido, y el objetivo de esta tarea es que el umbral
-frene retrocesos, no maximizar el número.
+**Frontend** — medición real: 100% líneas, 100% statements, 81.81% funciones, **87.5% ramas**.
+Umbral elegido: **90% líneas / 90% statements / 70% funciones / 75% ramas**, también por debajo
+de la medición real en los cuatro casos. No cerré las dos ramas que faltan para llegar a 100%: ya
+supero el mínimo de 4 tests pedido, y el objetivo de esta tarea es que el umbral frene retrocesos,
+no maximizar el número.
 
-**Verificación del freno**: corrí `vitest run --coverage` con el umbral real (pasa, exit
-code 0) y con `--coverage.thresholds.functions=95` pisado por línea de comandos sin tocar
-el archivo (falla, exit code 1, mensaje exacto: `ERROR: Coverage for functions (81.81%)
-does not meet global threshold (95%)`). El archivo quedó con el umbral real (90/90/70/75).
+Verificación del freno en los dos lados: corrí la suite con el umbral real (pasa, exit code 0) y
+con un valor pisado por línea de comandos sin tocar el archivo (falla, exit code 1). Backend:
+`Jest: "global" coverage threshold for lines (50%) not met: 24.4%`. Frontend: `ERROR: Coverage
+for functions (81.81%) does not meet global threshold (95%)`.
+
+### 4. Por qué un coverage alto no garantiza calidad (mi propio ejemplo)
+
+`client.js` da 100% en líneas y en statements, pero 81.81% en funciones: dos métodos enteros,
+`api.registro` y `api.crearTurno`, nunca son llamados por ningún test. El número de línea no lo
+delata porque esas funciones *existen* como código alcanzable desde otros tests indirectamente
+cubiertos — lo que falta no es que el archivo se ejecute, es que **nadie verificó qué hacen esos
+dos métodos en particular**. Un 100% en líneas se puede lograr sin haber probado nunca la mitad
+de la superficie pública del archivo; por eso el enunciado pide reportar siempre rama y función
+además de línea, no solo el número más fácil de inflar.
+
+### 5. El ejercicio de la rama sin cubrir
+
+Elegí `backend/src/utils/turnoRules.js`, línea 23: el parámetro por default de
+`puedeCancelarPorTiempo(fechaHoraInicio, ahora = new Date())`. Mis 3 tests de esta función siempre
+pasan `ahora` explícito (25hs, 24hs, 23hs de anticipación), así que la rama del `= new Date()` —
+usar el reloj real cuando no se pasa el segundo argumento — nunca se ejecuta.
+
+- **Qué entrada la recorrería**: llamar a la función con un solo argumento,
+  `puedeCancelarPorTiempo(fechaFutura)`, sin pasar `ahora`.
+- **Qué decidí hacer**: no lo agregué. Testear contra `new Date()` real introduce no-determinismo
+  (el resultado depende del instante exacto en que corre el test) sin sumar cobertura de una regla
+  nueva — ya pruebo el comportamiento de la función con los 3 casos de borde reales que importan.
+  El parámetro por default existe para que el código de producción (`turnoController`) lo llame
+  cómodo sin tener que pasar la hora actual a mano, no como una rama de negocio que haya que
+  verificar aparte.
+
+### 6. Problemas encontrados y cómo los resolví
+
+- El pipeline empezó a fallar de forma intermitente con `429 Too Many Requests` de Docker Hub al
+  hacer `FROM node:20-alpine` — el límite de pulls anónimos compartido entre todos los runners de
+  GitHub Actions. Solución: `docker/login-action` en ambos jobs con una cuenta gratuita de Docker
+  Hub (`DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`), que mueve las pulls al límite autenticado por
+  cuenta en vez del pool anónimo saturado.
+- Al correr la etapa de test del frontend en un contenedor con el volumen montado directo en
+  `/app/coverage`, la corrida fallaba con `EBUSY: resource busy or locked, rmdir
+  '/app/coverage'`. Causa: Vitest borra la carpeta de coverage completa antes de escribir el
+  reporte (`coverage.clean`, default `true`), y el punto de montaje de un volumen Docker no se
+  puede borrar desde adentro del contenedor. Jest no tiene este problema porque no limpia la
+  carpeta antes de escribir. Solución: montar un directorio padre y que Vitest escriba en una
+  subcarpeta adentro, controlada por `COVERAGE_DIR` — mismo mecanismo que ya usaba el script
+  `test:coverage`, solo cambia dónde apunta el volumen del `docker run`.
+
+### 7. Coverage dentro del pipeline
+
+Cada Dockerfile tiene una etapa `test` nueva, en el medio (entre `deps`/`build` y la imagen
+final), para que el pipeline testee el mismo código y las mismas dependencias que después se
+despliegan. El job de CI la construye con `target: test`, la corre con `docker run`, y
+`coverage-summary.json` (generado por el reporter `json-summary`) se convierte en una tabla
+Markdown agregada a `$GITHUB_STEP_SUMMARY` — visible en la página de la corrida sin descargar
+nada — mientras el reporte HTML completo se sube como artefacto descargable.
+
+Verificado en una corrida real: el Summary de `build-backend` mostró 24.4% / 24.21% / 23.8% /
+18.64%, y el de `build-frontend` 100% / 100% / 81.81% / 87.5% — coinciden exacto con lo medido en
+mi máquina.
+
+PRs: [#27](https://github.com/MariaRuival/gestion-turnos/pull/27) (coverage backend),
+<PR coverage frontend — confirmame el número>,
+<PR Dockerfiles con la etapa test — confirmame el número>,
+[#30](https://github.com/MariaRuival/gestion-turnos/pull/30) (ci.yml).
+
+### 8. Declaración de uso de IA
+
+Usé Claude para planificar juntas qué reglas testear y con qué técnica en cada una, para decidir
+el scope y el umbral de coverage (discutiendo qué incluir/excluir y por qué, contra lo que pide
+el enunciado), y para diagnosticar los dos problemas de infraestructura del pipeline (Docker Hub,
+EBUSY de Vitest). Claude Code generó los archivos de test, las configs de Jest/Vitest y los
+cambios de `ci.yml` a partir de esos planes. En cada paso corrí yo misma la suite y leí la salida
+completa (nombres de test, tabla de coverage, mensajes de error exactos) antes de commitear;
+puedo explicar qué verifica cada assert y qué rama/función específica quedó sin cubrir en cada
+archivo.
