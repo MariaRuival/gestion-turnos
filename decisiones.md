@@ -607,3 +607,29 @@ cambios de `ci.yml` a partir de esos planes. En cada paso corrí yo misma la sui
 completa (nombres de test, tabla de coverage, mensajes de error exactos) antes de commitear;
 puedo explicar qué verifica cada assert y qué rama/función específica quedó sin cubrir en cada
 archivo.
+
+### 9. El umbral bloqueando un merge — los 2 Pull Requests
+
+**PR 1** — [#32](https://github.com/MariaRuival/gestion-turnos/pull/32): agregué `urgenciaDeTurno`
+a `turnoRules.js`, una función de 7 caminos, sin tests. Compiló perfecto y los 17 tests existentes
+siguieron en verde, pero el build se frenó igual: `branches` cayó a 14.47%, por debajo del umbral
+de 15% (corrida roja:
+[`.../runs/38013678642`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38013678642),
+log: `Jest: "global" coverage threshold for branches (15%) not met: 14.47%`). Agregué los 7 tests
+que faltaban —uno por camino— y el build volvió a verde (corrida verde:
+[`.../runs/38013892657`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38013892657)).
+Mergeado con la secuencia completa en su historial.
+
+**Ratchet intermedio** — [#33](https://github.com/MariaRuival/gestion-turnos/pull/33): una vez
+cubierta `urgenciaDeTurno`, el coverage real de ramas subió a 35.52%, muy por encima del umbral
+original de 15% — demasiado margen para que un solo método sin tests lo rompiera de nuevo. Subí el
+umbral de `branches` a 32% (dejando `lines`/`statements`/`functions` en 20, que seguían ajustados).
+Esto es la práctica de "ratchet": cuando la cobertura mejora, se sube el piso para que no se pueda
+retroceder — mergeado en verde, sin romper nada (branches real 35.52% > 32%).
+
+**PR 2** — [#34](https://github.com/MariaRuival/gestion-turnos/pull/34): agregué
+`proximaAccionDisponible` (otra función de varios caminos, combinando estado y rol), también sin
+tests. Con el umbral ya en 32%, esto bastó para frenar de nuevo: `branches` cayó a 30.68% (corrida
+roja: [`.../runs/38014595056`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38014595056)).
+**Este PR queda abierto y en rojo a propósito, sin arreglar, hasta la defensa** — es la prueba de
+que el freno sigue vigente, no solo que funcionó una vez.
