@@ -492,3 +492,49 @@ definimos juntas (qué 4 reglas, qué test lleva el mock). Revisé la salida de
 `npm test` y entendí cada assert antes de mergear.
 
 PR: <https://github.com/MariaRuival/gestion-turnos/pull/24>
+
+
+## TP5 — Suite de unit tests del frontend
+
+[... iba a escribir la parte de los 9 tests de Vitest, pero eso lo armamos
+en el próximo paso junto con esto]
+
+**Problema encontrado**: el pipeline empezó a fallar de forma intermitente con
+`429 Too Many Requests` de Docker Hub al hacer `FROM node:20-alpine` — el límite
+de pulls anónimos compartido entre todos los runners de GitHub Actions. Solución:
+agregar `docker/login-action` en ambos jobs (`build-backend` y `build-frontend`)
+con una cuenta gratuita de Docker Hub (secrets `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN`),
+lo que mueve las pulls al límite autenticado por cuenta en vez del pool anónimo
+saturado. No está relacionado al contenido del TP5 en sí, es un fix de
+infraestructura del pipeline del TP4.
+
+## TP5 — Coverage del backend y umbral que rompe el build
+
+**Qué queda adentro de la cuenta y por qué**: `controllers/`, `middleware/auth.js` y `utils/`.
+Dejé **afuera** `server.js`, `routes/*`, `app.js`, `middleware/errorHandler.js` (arranque y wiring
+de Express, sin reglas de negocio — el enunciado los marca explícitamente como excluibles) y
+`config/`, `db/`, `models/` (consultas SQL puras, ya documentado en la sección de organización
+general que no tienen lógica de negocio).
+
+**Importante**: `middleware/auth.js` se queda **adentro** aunque hoy esté en 0%, porque
+`requiereRol` implementa la parte administrativa de la regla de negocio #5 (el comentario del
+código lo dice textual). Excluirlo solo porque no tiene tests sería la trampa que señala el
+enunciado — esconder lógica no testeada en vez de medir lo que importa.
+
+**Medición real** (antes de definir el umbral): 24.4% líneas, 24.21% statements, 23.8% funciones,
+18.64% ramas. Lo que más pesa en contra: `authController.js` (87 líneas, 0%) y `middleware/auth.js`
+(0%) — login, registro y verificación de JWT quedaron fuera del alcance de tests que prioricé en
+este TP (me concentré en las reglas de turnos).
+
+**Umbral elegido**: 20% líneas / 20% statements / 20% funciones / 15% ramas — por debajo de mi
+medición real (margen de ~4 puntos en línea/statements, ~3.6 en ramas), para que el freno exista de
+verdad (se rompe si alguien borra un test) sin ser una meta inalcanzable que yo misma tendría que
+esquivar. Para subirlo, el paso obvio es sumar tests sobre `authController.js` y `auth.js`.
+
+**Verificación del freno**: corrí `jest --coverage` con el umbral real (pasa, exit code 0) y con
+`--coverageThreshold` pisado temporalmente a 50% en líneas vía línea de comandos, sin tocar el
+archivo (falla, exit code 1, mensaje exacto: `Jest: "global" coverage threshold for lines (50%) not
+met: 24.4%`). El archivo quedó con el umbral real.
+
+**Reporte de rama**: reportado arriba (18.64%) aunque el umbral efectivo principal esté pensado
+sobre línea — tal como pide el enunciado.
