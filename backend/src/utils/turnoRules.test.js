@@ -3,6 +3,7 @@ const {
   calcularTotales,
   esTransicionValida,
   puedeCancelarPorTiempo,
+  urgenciaDeTurno,
 } = require('./turnoRules');
 
 const UNA_HORA_MS = 60 * 60 * 1000;
@@ -111,5 +112,100 @@ describe('puedeCancelarPorTiempo', () => {
 
     // Assert
     expect(resultado).toBe(false);
+  });
+});
+
+describe('urgenciaDeTurno', () => {
+  const ahora = new Date('2026-10-09T12:00:00.000Z');
+  const enHoras = (horas) => new Date(ahora.getTime() + horas * UNA_HORA_MS);
+
+  it.each([
+    ['turno null', null],
+    ['turno sin fechaHoraInicio', { estado: 'pendiente' }],
+  ])('turnoSinFecha_devuelveSinFecha: %s', (_caso, turno) => {
+    // Arrange (el turno llega parametrizado por it.each)
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('sin-fecha');
+  });
+
+  it('turnoCancelado_devuelveCerradoAunqueSeaFuturo', () => {
+    // Arrange
+    const turno = { estado: 'cancelado', fechaHoraInicio: enHoras(48) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('cerrado');
+  });
+
+  it('turnoCompletado_devuelveCerrado', () => {
+    // Arrange
+    const turno = { estado: 'completado', fechaHoraInicio: enHoras(-48) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('cerrado');
+  });
+
+  it('turnoConFechaYaPasada_devuelvePasado', () => {
+    // Arrange
+    const turno = { estado: 'pendiente', fechaHoraInicio: enHoras(-1) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('pasado');
+  });
+
+  it('turnoEnMenosDeVeinticuatroHoras_devuelveHoy', () => {
+    // Arrange
+    const turno = { estado: 'confirmado', fechaHoraInicio: enHoras(5) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('hoy');
+  });
+
+  it('turnoEnMenosDeSieteDias_devuelveEstaSemana', () => {
+    // Arrange
+    const turno = { estado: 'pendiente', fechaHoraInicio: enHoras(3 * 24) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('esta-semana');
+  });
+
+  it('turnoEnMenosDeTreintaDias_devuelveEsteMes', () => {
+    // Arrange
+    const turno = { estado: 'pendiente', fechaHoraInicio: enHoras(15 * 24) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('este-mes');
+  });
+
+  it('turnoEnMasDeTreintaDias_devuelveLejano', () => {
+    // Arrange
+    const turno = { estado: 'pendiente', fechaHoraInicio: enHoras(45 * 24) };
+
+    // Act
+    const resultado = urgenciaDeTurno(turno, ahora);
+
+    // Assert
+    expect(resultado).toBe('lejano');
   });
 });
