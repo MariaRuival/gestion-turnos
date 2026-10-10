@@ -17,6 +17,10 @@ ARG VITE_API_URL=/api
 ENV VITE_API_URL=$VITE_API_URL
 RUN npm run build
 
+# ---- Etapa: tests (parte del build: ya tiene Node y las dependencias) ----
+FROM build AS test
+ENTRYPOINT ["npm", "run", "test:coverage"]
+
 # --- Etapa 2: servir los estaticos con nginx ---
 FROM nginx:1.27-alpine
 

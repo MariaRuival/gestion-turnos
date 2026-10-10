@@ -12,7 +12,7 @@ module.exports = {
     'src/middleware/auth.js',
     'src/utils/**/*.js',
   ],
-  coverageReporters: ['text', 'lcov'],
+  coverageReporters: ['text', 'lcov', 'json-summary'],
   // Piso definido sobre la medicion real (24.4% lines / 18.64% branches):
   // si el coverage baja de aca, "npm run test:coverage" falla.
   coverageThreshold: {
