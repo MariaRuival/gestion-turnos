@@ -13,14 +13,17 @@ module.exports = {
     'src/utils/**/*.js',
   ],
   coverageReporters: ['text', 'lcov', 'json-summary'],
-  // Piso definido sobre la medicion real (24.4% lines / 18.64% branches):
-  // si el coverage baja de aca, "npm run test:coverage" falla.
+  // Piso definido sobre la medicion real: si el coverage baja de aca,
+  // "npm run test:coverage" falla. lines/statements/functions se fijaron con
+  // la primera medicion (24.4% lines). branches se subio de 15 a 32 ("ratchet")
+  // cuando los tests de urgenciaDeTurno la llevaron a 35.52%, para que no
+  // vuelva a bajar.
   coverageThreshold: {
     global: {
       lines: 20,
       statements: 20,
       functions: 20,
-      branches: 15,
+      branches: 32,
     },
   },
 };
