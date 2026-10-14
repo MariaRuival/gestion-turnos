@@ -9,10 +9,18 @@ server {
     # el que cargo la pagina. Evita hornear una URL absoluta (localhost:4000)
     # en el bundle, que solo funciona si quien abre la app esta en la misma
     # maquina donde corre el backend.
+
+    # La direccion del backend y el DNS llegan por variables de entorno: en
+    # Docker Compose, el nombre del servicio y el DNS interno de Docker; en
+    # Render, la URL de la api de ESTE entorno (QA o PROD) y un DNS publico.
+    resolver ${DNS_RESOLVER} valid=10s ipv6=off;
+    set $backend_api ${BACKEND_URL};
+
     location /api/ {
-        proxy_pass http://backend:4000/api/;
+        proxy_pass $backend_api;
+        proxy_ssl_server_name on;   # la api de Render es https: sin esto el TLS no sabe a que host va
         proxy_http_version 1.1;
-        proxy_set_header Host $host;
+        proxy_set_header Host $proxy_host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
