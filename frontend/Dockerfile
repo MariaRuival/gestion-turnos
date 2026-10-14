@@ -27,6 +27,7 @@ FROM nginx:1.27-alpine
 COPY --from=build /app/dist /usr/share/nginx/html
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 ENV BACKEND_URL=http://backend:4000 \
-    DNS_RESOLVER=127.0.0.11
+    DNS_RESOLVER=127.0.0.11 \
+    PORT=80
 
 EXPOSE 80
