@@ -324,7 +324,7 @@ th, td {
   bottom: 6px;
   font-size: 11px;
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  color: var(--color-text-muted);
+  color: var(--color-primary);
   opacity: 0.7;
   pointer-events: none;
   user-select: all;
