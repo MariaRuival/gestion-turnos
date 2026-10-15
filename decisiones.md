@@ -633,3 +633,154 @@ tests. Con el umbral ya en 32%, esto bastó para frenar de nuevo: `branches` cay
 roja: [`.../runs/38014595056`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38014595056)).
 **Este PR queda abierto y en rojo a propósito, sin arreglar, hasta la defensa** — es la prueba de
 que el freno sigue vigente, no solo que funcionó una vez.
+
+
+## TP6 — CD: Entornos, Promoción y Gate Humano
+
+### Enlaces de este TP
+
+- Paquetes públicos: `ghcr.io/mariaruival/gestion-turnos-backend` y
+  `ghcr.io/mariaruival/gestion-turnos-frontend` (pull verificado sin credenciales, con`docker logout ghcr.io` antes de probar).
+- Cadena de publicación: corrida de un PR con "Entrar al registry" salteado —
+  [`.../runs/38560275602`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38560275602) —
+  y la corrida real de `main` que sí publica —
+  [`.../runs/38560556369`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38560556369).
+- QA: [turnos-front-qa.onrender.com](https://turnos-front-qa.onrender.com) /
+  [turnos-api-qa.onrender.com](https://turnos-api-qa.onrender.com).
+- PROD: [turnos-front-prod.onrender.com](https://turnos-front-prod.onrender.com) /
+  [turnos-api-prod.onrender.com](https://turnos-api-prod.onrender.com).
+- Deploy automático a QA con smoke en verde:
+  [`.../runs/38604678741`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38604678741).
+- Rechazo a PROD, con motivo:
+  [`.../runs/38783459478`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38783459478).
+- Aprobación a PROD:
+  [`.../runs/38784862878`](https://github.com/MariaRuival/gestion-turnos/actions/runs/38784862878).
+- Release [`v6.0.0`](https://github.com/MariaRuival/gestion-turnos/releases/tag/v6.0.0), tagueada
+  sobre el commit que Render reporta como desplegado en `production` (no la punta de `main`).
+
+### 1. Por qué el artefacto se publica solo en verde
+
+El job que publica a `ghcr.io` es el mismo que corre los tests y mide el coverage — publicar es
+el último paso de ese job, después de construir la etapa de tests y correrlos. Si cualquier paso
+anterior falla, el workflow corta ahí y la publicación nunca se ejecuta: no hace falta ninguna
+condición explícita, es consecuencia del orden. Si el registry publicara igual aunque los tests
+fallaran, "publicado" dejaría de significar "pasó la verificación" y pasaría a significar solo
+"compiló" — el umbral de coverage del TP5 perdería sentido, porque algo podría romperlo y la
+imagen rota se publicaría de todos modos.
+
+Son **tres controles encadenados**, no uno: nada entra a `main` sin los checks en verde
+(protección de rama), solo `main` dispara la publicación, y publicar es el último paso del mismo
+job que verifica. Los tres juntos hacen imposible por accidente que se publique algo no
+verificado.
+
+### 2. Continuous Delivery vs Continuous Deployment
+
+Implementé **Continuous Delivery** hacia producción, no Deployment: todo merge a `main` que pasa
+los tests queda listo para desplegarse a PROD, pero no se despliega solo — necesita mi aprobación
+manual en el environment `production`. QA sí es Continuous Deployment real: cada merge se
+despliega ahí sin que nadie intervenga.
+
+Elegí Delivery para PROD porque la app maneja datos reales de negocio y, aunque el pipeline mide
+coverage y corre smoke tests, ninguno de los dos prueba flujos de negocio completos — un humano
+mirando el diff y el estado de QA agrega un juicio que el pipeline no tiene. Para llegar a
+Deployment completo necesitaría más tests de integración/e2e y más confianza en que el pipeline
+solo detecta regresiones técnicas, no de producto.
+
+### 3. Diseño de la cadena y alcance de cada secret
+`deploy-qa` depende de los dos builds y solo corre en push a `main`, nunca en un PR. `deploy-prod`
+depende de `deploy-qa`: si QA falla o su smoke no da verde, `deploy-prod` ni arranca. Los secrets
+están scopeados por environment, no por repo: `RENDER_HOOK_*_QA` solo existen dentro de un job con
+`environment: qa`, `RENDER_HOOK_*_PROD` solo dentro de `environment: production`. Si estuvieran a
+nivel repo, cualquier job —incluido uno corriendo sobre cualquier rama— podría leerlos; el
+environment es lo que hace el hook de PROD inalcanzable para cualquier corrida que no pasó por la
+aprobación. `deploy-prod` además tiene `concurrency: { group: deploy-prod, cancel-in-progress:
+false }`, para que una corrida vieja encolada nunca se despliegue después de una más nueva.
+
+### 4. Qué mira el aprobador antes de aprobar
+
+Que el smoke test de `deploy-qa` haya dado verde para ese commit específico (no "QA anda", sino
+"QA anda con este commit"); qué tipo de cambio es (infraestructura pura vs algo que un usuario
+notaría); y si falta documentar algo antes de que quede en producción. Lo practiqué con los dos
+caminos: un **rechazo** (el commit solo agregaba el job `deploy-prod`, sin nada de producto para
+mostrar) y una **aprobación** (un cambio chico pero visible — el badge de versión —, confirmado a
+simple vista en PROD después del deploy).
+
+### 5. Letra chica del free tier
+
+Los servicios free de Render duermen tras inactividad; la primera request puede tardar 50+
+segundos. Mi smoke test lo absorbe con un loop de reintentos (30 × 20s) en vez de esperar
+respuesta inmediata. Elegí Neon para Postgres en vez del Postgres propio de Render porque el de
+Render **expira a los 30 días** de creado (14 de gracia antes de borrarse) — no cubre ni el resto
+del cuatrimestre; Neon es permanente en su free tier (con límites de uso, no de tiempo).
+
+### 6. Qué garantía pierdo porque Render reconstruye en vez de usar mi imagen
+
+El pipeline publica una imagen verificada en `ghcr.io`, pero Render no la usa: clona el repo y
+reconstruye con mi Dockerfile de forma independiente cada vez. Lo que corre en Render podría no
+ser bit-a-bit idéntico a lo verificado en CI si una dependencia sin pin exacto resuelve distinto
+entre un build y otro. La garantía de "lo que se probó es lo que corre" depende acá de que el
+Dockerfile y el lockfile sean deterministas, no de una cadena de custodia real del binario.
+
+### 7. Qué prueba mi smoke test y qué no
+
+Prueba: el proceso vivo, la base conectada (`/health` hace un `SELECT 1` real), que el commit
+desplegado es exactamente el recién mergeado (comparando contra `RENDER_GIT_COMMIT`), y que el
+front responde. No prueba: ningún flujo de negocio real (login, crear un turno), ni el proxy de
+`/api/` de punta a punta desde el browser (eso lo verifiqué a mano por separado), ni performance.
+
+### 8. Deployment pattern para producción real + plan de rollback
+
+Elegiría **rolling deployment** antes que blue-green o canary: blue-green duplica el costo de
+infraestructura (dos entornos completos en paralelo) y canary necesita enrutar tráfico por
+porcentaje, algo que no tengo con el free tier de Render. Rolling es lo que ya tengo de hecho: un
+servicio por entorno, reemplazado completo en cada deploy. Para canary en serio necesitaría un
+proxy/load balancer propio delante de dos instancias de PROD y una forma de decidir el split.
+
+**Plan de rollback**: disparar los Deploy Hooks de PROD con el SHA del commit anterior
+(`&ref=$SHA_ANTERIOR`), el mismo mecanismo que un deploy normal, apuntando hacia atrás. Lo medí de
+verdad: disparé los hooks a las 15:38:53 y Render marcó el backend *Live* en 23.8s y el frontend en
+33.9s — **~34 segundos en total** (manda el más lento). Fue rápido porque Render ya tenía ese
+commit construido de un deploy anterior y reusó la cache de Docker; un commit nunca antes
+desplegado tardaría lo mismo que un deploy normal (varios minutos).
+
+Lo que el rollback de código **no** deshace: un cambio de schema aplicado a la base (lo aplico a
+mano, sin migraciones versionadas) sigue aplicado después de volver el código atrás — si un deploy
+hubiera borrado una columna, esa columna sigue borrada aunque el código vuelva. Rollback de código
+y de datos son problemas distintos; este pipeline solo resuelve el primero.
+
+### 9. Problemas encontrados y cómo los resolví
+
+- **Nombre de imagen en mayúsculas**: `github.repository` incluye el usuario tal cual, y Docker
+  rechaza tags con mayúsculas. Un step arma el nombre en minúsculas antes de usarlo, y corre
+  siempre (no solo en push), porque Docker valida el formato del tag al construir aunque
+  `push: false`.
+- **`/health` caía en el fallback del SPA**: nginx reenvía todo lo que no sea `/api/` o `/assets/`
+  a `index.html`. Se resolvió con un `location = /health` explícito, con el mismo proxy que
+  `/api/`.
+- **Header `Host` incorrecto hacia Render**: el proxy mandaba el `Host` del frontend, y Render
+  enruta por ese header — la llamada a la API volvía al propio frontend. Se arregló con
+  `proxy_set_header Host $proxy_host`.
+- **Puerto fijo (`listen 80`) contra el `$PORT` de Render**: Render espera que el contenedor
+  escuche en el puerto que asigna vía `PORT`. Se resolvió parametrizando `listen ${PORT};`, con
+  `PORT=80` como default para no romper `docker compose`.
+- **El template de nginx se vació solo en un commit** (probablemente el editor, a mitad de un
+  commit) y quedó mergeado en `main`. Se detectó comparando con el commit anterior y se restauró
+  en un PR de fix antes de afectar un deploy real.
+- **El primer smoke test tenía tres bugs encadenados**: `curl -f` contra una llamada que siempre
+  daba 401 hacía fallar el script aunque todo anduviera bien; un 401 de una ruta protegida no
+  probaba que la base estuviera conectada (el middleware de auth corta antes de llegar a la
+  base); y `bash -e` cortaba el loop entero ante el primer timeout de red, normal durante un cold
+  start, en vez de reintentar. Se resolvió rediseñando el smoke sobre `/health` (sin auth, con un
+  `SELECT 1` real), comparando el commit devuelto contra `$GITHUB_SHA`, con `|| true` para que un
+  timeout no corte el script.
+- **Una corrida quedó colgada ~21 horas** esperando aprobación tras un corte de batería a mitad de
+  sesión. Se canceló manualmente y se re-disparó el pipeline con un commit vacío, en su propio PR
+  (`main` está protegida, ni un commit vacío puede pushearse directo).
+- **"Allow administrators to bypass configured protection rules" venía tildado por default** en el
+  environment `production` — si quedaba así, el gate no me habría frenado a mí misma (soy admin
+  del repo), y la Fase 5 habría sido decorativa. Se destildó antes de probar nada.
+
+### 10. Declaración de uso de IA
+
+Usé Claude para planificar cada fase (publicación de imágenes, Neon, Render, la plantilla de nginx, el gate humano, el rollback) y para diagnosticar cada problema a medida que apareció: el nombre de imagen en mayúsculas, el header `Host`, el puerto fijo, los tres bugs del smoke test, y el archivo de nginx vaciado. Claude Code generó los cambios de código y de `ci.yml` a partir de esos diagnósticos, pero cada verificación la corrí yo misma: probé con `curl` QA y PROD con y sin token, confirmé en el navegador el login completo en los dos entornos, miré los logs reales de
+Render para cada deploy, y disparé y cronometré el rollback a mano desde mi terminal.
