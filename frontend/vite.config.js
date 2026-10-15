@@ -11,11 +11,13 @@ export default defineConfig(({ mode }) => {
   // proxy, asi que armamos el mismo /api -> backend aca a nivel de Vite, para
   // que el cliente HTTP pueda seguir usando la URL relativa /api en todos los
   // modos de ejecucion.
+  const backend = {
+    target: env.VITE_BACKEND_URL || 'http://localhost:4000',
+    changeOrigin: true,
+  };
   const proxyApi = {
-    '/api': {
-      target: env.VITE_BACKEND_URL || 'http://localhost:4000',
-      changeOrigin: true,
-    },
+    '/api': backend,
+    '/health': backend,
   };
 
   return {
