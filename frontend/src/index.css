@@ -316,3 +316,16 @@ th, td {
     grid-template-columns: 1fr;
   }
 }
+
+/* Commit desplegado, en una esquina y sin molestar (ver VersionBadge.jsx). */
+.version-badge {
+  position: fixed;
+  right: 8px;
+  bottom: 6px;
+  font-size: 11px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  color: var(--color-text-muted);
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: all;
+}
