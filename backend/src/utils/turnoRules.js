@@ -63,6 +63,22 @@ function urgenciaDeTurno(turno, ahora = new Date()) {
   return 'lejano';
 }
 
+function proximaAccionDisponible(turno, rol) {
+  if (!turno) {
+    return 'ninguna';
+  }
+  if (turno.estado === 'completado' || turno.estado === 'cancelado') {
+    return 'ninguna';
+  }
+  if (rol === 'admin') {
+    return turno.estado === 'pendiente' ? 'confirmar' : 'completar';
+  }
+  if (rol === 'cliente') {
+    return 'cancelar';
+  }
+  return 'ninguna';
+}
+
 module.exports = {
   HORAS_MINIMAS_PARA_CANCELAR,
   TRANSICIONES_VALIDAS,
@@ -70,4 +86,5 @@ module.exports = {
   puedeCancelarPorTiempo,
   calcularTotales,
   urgenciaDeTurno,
+  proximaAccionDisponible,
 };
