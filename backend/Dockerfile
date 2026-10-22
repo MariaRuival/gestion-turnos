@@ -21,3 +21,10 @@ RUN chmod +x entrypoint.sh
 
 EXPOSE 4000
 ENTRYPOINT ["./entrypoint.sh"]
+
+# Commit del que salio esta imagen (lo pasa el pipeline con --build-arg).
+# Va al final para que cambiar de commit no invalide la cache de las capas
+# anteriores. /health lo informa: Render no inyecta RENDER_GIT_COMMIT en
+# servicios que corren una imagen ya construida.
+ARG GIT_SHA
+ENV GIT_SHA=$GIT_SHA
