@@ -593,8 +593,8 @@ Verificado en una corrida real: el Summary de `build-backend` mostró 24.4% / 24
 mi máquina.
 
 PRs: [#27](https://github.com/MariaRuival/gestion-turnos/pull/27) (coverage backend),
-<PR coverage frontend — confirmame el número>,
-<PR Dockerfiles con la etapa test — confirmame el número>,
+[#28](https://github.com/MariaRuival/gestion-turnos/pull/28) (coverage frontend),
+[#29](https://github.com/MariaRuival/gestion-turnos/pull/29) (Dockerfiles con la etapa test),
 [#30](https://github.com/MariaRuival/gestion-turnos/pull/30) (ci.yml).
 
 ### 8. Declaración de uso de IA
