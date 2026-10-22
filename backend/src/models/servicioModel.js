@@ -20,4 +20,22 @@ async function buscarPorIds(ids) {
   return rows;
 }
 
-module.exports = { listarActivos, buscarPorIds };
+async function crear({ nombre, duracionMinutos, precio }) {
+  const { rows } = await query(
+    `INSERT INTO servicios (nombre, duracion_minutos, precio)
+     VALUES ($1, $2, $3)
+     RETURNING id, nombre, duracion_minutos, precio, activo`,
+    [nombre, duracionMinutos, precio]
+  );
+  return rows[0];
+}
+
+// Borrado logico: el servicio deja de listarse y de poder elegirse para turnos
+// nuevos, pero los turnos viejos que lo referencian (turno_servicios) siguen
+// intactos. Devuelve false si el id no existe.
+async function desactivar(id) {
+  const { rowCount } = await query('UPDATE servicios SET activo = false WHERE id = $1', [id]);
+  return rowCount > 0;
+}
+
+module.exports = { listarActivos, buscarPorIds, crear, desactivar };
