@@ -261,10 +261,13 @@ jobs:
       - name: Instalar Chromium
         working-directory: ./frontend
         run: npx playwright install --with-deps chromium
-      - name: Esperar a que el front este despierto (cold start)
+      - name: Esperar a que la API (con la base) y el front esten despiertos (cold start)
         run: |
           for i in $(seq 1 10); do
-            curl -fsS --max-time 10 -o /dev/null https://turnos-front-qa.onrender.com/ && break
+            # /health hace SELECT 1: despierta la API y la base, no solo el front.
+            curl -fsS --max-time 10 https://turnos-api-qa.onrender.com/health > /dev/null \
+              && curl -fsS --max-time 10 -o /dev/null https://turnos-front-qa.onrender.com/ \
+              && break
             echo "Intento $i/10: todavia no responde, reintento en 10s"
             sleep 10
           done
