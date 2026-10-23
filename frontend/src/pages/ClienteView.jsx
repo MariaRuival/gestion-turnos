@@ -98,8 +98,8 @@ export default function ClienteView() {
       </header>
 
       <main className="contenido">
-        {error && <div className="error">{error}</div>}
-        {mensaje && <div className="exito">{mensaje}</div>}
+        {error && <div className="error" data-testid="mensaje-error">{error}</div>}
+        {mensaje && <div className="exito" data-testid="mensaje-exito">{mensaje}</div>}
 
         <section className="tarjeta">
           <h2>Reservar turno</h2>
@@ -109,6 +109,7 @@ export default function ClienteView() {
                 <label htmlFor="fecha">Fecha</label>
                 <input
                   id="fecha"
+                  data-testid="reserva-fecha"
                   type="date"
                   value={fecha}
                   min={new Date().toISOString().slice(0, 10)}
@@ -120,6 +121,7 @@ export default function ClienteView() {
                 <label htmlFor="hora">Hora</label>
                 <input
                   id="hora"
+                  data-testid="reserva-hora"
                   type="time"
                   value={hora}
                   onChange={(e) => setHora(e.target.value)}
@@ -135,13 +137,13 @@ export default function ClienteView() {
               onCambiar={setSeleccionados}
             />
 
-            <button type="submit" className="boton" disabled={reservando}>
+            <button type="submit" className="boton" data-testid="reserva-submit" disabled={reservando}>
               {reservando ? 'Reservando...' : 'Reservar turno'}
             </button>
           </form>
         </section>
 
-        <section className="tarjeta">
+        <section className="tarjeta" data-testid="mis-turnos">
           <h2>Mis turnos</h2>
           {cargandoTurnos && <p className="vacio">Cargando...</p>}
           {!cargandoTurnos && turnosActivos.length === 0 && turnosPasados.length === 0 && (

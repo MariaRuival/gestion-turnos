@@ -8,7 +8,12 @@ const formateadorFecha = new Intl.DateTimeFormat('es-AR', {
 // (distinto para la vista de cliente y la de admin).
 export default function TurnoCard({ turno, mostrarCliente = false, acciones = [] }) {
   return (
-    <div className="turno-card">
+    <div
+      className="turno-card"
+      data-testid="turno-card"
+      data-turno-id={turno.id}
+      data-fecha-inicio={turno.fechaHoraInicio}
+    >
       <div className="turno-info">
         <h3>
           {formateadorFecha.format(new Date(turno.fechaHoraInicio))}{' '}
