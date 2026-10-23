@@ -31,6 +31,9 @@ export const api = {
   registro: (nombre, email, password) =>
     request('/auth/registro', { method: 'POST', body: { nombre, email, password } }),
   servicios: () => request('/servicios'),
+  crearServicio: ({ nombre, duracionMinutos, precio }) =>
+    request('/servicios', { method: 'POST', body: { nombre, duracionMinutos, precio } }),
+  eliminarServicio: (id) => request(`/servicios/${id}`, { method: 'DELETE' }),
   misTurnos: () => request('/turnos/mios'),
   todosLosTurnos: () => request('/turnos'),
   crearTurno: (fechaHoraInicio, servicioIds) =>

@@ -44,6 +44,8 @@ describe('api (cliente HTTP)', () => {
     ['cancelarTurno', [42], '/api/turnos/42/cancelar', 'PATCH'],
     ['confirmarTurno', [42], '/api/turnos/42/confirmar', 'PATCH'],
     ['completarTurno', [42], '/api/turnos/42/completar', 'PATCH'],
+    ['crearServicio', [{ nombre: 'Peinado', duracionMinutos: 40, precio: 2500 }], '/api/servicios', 'POST'],
+    ['eliminarServicio', [7], '/api/servicios/7', 'DELETE'],
   ])('metodo_%s_llamaAFetchConRutaYVerboCorrectos', async (metodo, args, urlEsperada, verboEsperado) => {
     // Arrange (metodo, argumentos y resultado esperado llegan por it.each)
 
