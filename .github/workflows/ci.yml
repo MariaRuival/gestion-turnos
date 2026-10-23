@@ -206,9 +206,83 @@ jobs:
           done
           echo "❌ QA no respondio con el commit correcto a tiempo"; exit 1
 
-  deploy-prod:
+  integracion:
     runs-on: ubuntu-latest
     needs: [deploy-qa]
+    if: github.ref == 'refs/heads/main'
+    environment: qa
+    steps:
+      - name: Bajar el codigo al runner
+        uses: actions/checkout@v6
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias del frontend
+        working-directory: ./frontend
+        run: npm ci
+      - name: Instalar Chromium
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+      - name: Esperar a que la API este despierta (cold start)
+        run: |
+          for i in $(seq 1 10); do
+            curl -fsS --max-time 10 https://turnos-api-qa.onrender.com/health > /dev/null && break
+            echo "Intento $i/10: todavia no responde, reintento en 10s"
+            sleep 10
+          done
+      - name: Suite de integracion contra QA
+        working-directory: ./frontend
+        env:
+          API_BASE_URL: https://turnos-api-qa.onrender.com
+        run: npx playwright test e2e/api.spec.js
+      - name: Publicar el reporte de integracion
+        uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-integracion
+          path: frontend/playwright-report
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [integracion]
+    if: github.ref == 'refs/heads/main'
+    environment: qa
+    steps:
+      - name: Bajar el codigo al runner
+        uses: actions/checkout@v6
+      - name: Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Instalar dependencias del frontend
+        working-directory: ./frontend
+        run: npm ci
+      - name: Instalar Chromium
+        working-directory: ./frontend
+        run: npx playwright install --with-deps chromium
+      - name: Esperar a que el front este despierto (cold start)
+        run: |
+          for i in $(seq 1 10); do
+            curl -fsS --max-time 10 -o /dev/null https://turnos-front-qa.onrender.com/ && break
+            echo "Intento $i/10: todavia no responde, reintento en 10s"
+            sleep 10
+          done
+      - name: Suite e2e contra QA
+        working-directory: ./frontend
+        env:
+          E2E_BASE_URL: https://turnos-front-qa.onrender.com
+        run: npx playwright test e2e/tareas.spec.js
+      - name: Publicar el reporte de e2e
+        uses: actions/upload-artifact@v6
+        if: ${{ !cancelled() }}
+        with:
+          name: playwright-report-e2e
+          path: frontend/playwright-report
+
+  deploy-prod:
+    runs-on: ubuntu-latest
+    needs: [integracion, e2e]
     if: github.ref == 'refs/heads/main'
     environment: production
     concurrency:
