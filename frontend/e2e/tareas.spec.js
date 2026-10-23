@@ -12,6 +12,18 @@ async function loginUI(page, { email, password }, rol) {
   await page.getByTestId('login-email').fill(email);
   await page.getByTestId('login-password').fill(password);
   await page.getByTestId('login-submit').click();
+
+  // Un cold start de la API o de la base puede hacer fallar el primer login
+  // (ej. 502), que la pantalla muestra como login-error. En ese caso, y solo
+  // en ese, se reintenta una vez. Si el login es lento pero sale bien, no se
+  // reintenta: se espera a que navegue.
+  await page.waitForFunction(
+    () => location.pathname !== '/login' || document.querySelector('[data-testid="login-error"]')
+  );
+  if (new URL(page.url()).pathname === '/login') {
+    await page.waitForTimeout(2_000);
+    await page.getByTestId('login-submit').click();
+  }
   await expect(page).toHaveURL(new RegExp(`/${rol}$`));
 }
 
