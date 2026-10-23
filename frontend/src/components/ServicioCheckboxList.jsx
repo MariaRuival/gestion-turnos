@@ -14,9 +14,10 @@ export default function ServicioCheckboxList({ servicios, seleccionados, onCambi
     <div>
       <div className="servicios-lista">
         {servicios.map((s) => (
-          <label key={s.id} className="servicio-item">
+          <label key={s.id} className="servicio-item" data-testid="servicio-opcion" data-servicio-id={s.id}>
             <input
               type="checkbox"
+              data-testid="servicio-checkbox"
               checked={seleccionados.includes(s.id)}
               onChange={() => toggle(s.id)}
             />

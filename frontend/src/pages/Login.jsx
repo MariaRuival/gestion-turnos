@@ -57,7 +57,7 @@ export default function Login() {
           </button>
         </div>
 
-        {error && <div className="error">{error}</div>}
+        {error && <div className="error" data-testid="login-error">{error}</div>}
 
         <form onSubmit={manejarSubmit}>
           {modo === 'registro' && (
@@ -77,6 +77,7 @@ export default function Login() {
             <label htmlFor="email">Email</label>
             <input
               id="email"
+              data-testid="login-email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -89,6 +90,7 @@ export default function Login() {
             <label htmlFor="password">Contrasena</label>
             <input
               id="password"
+              data-testid="login-password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -97,7 +99,12 @@ export default function Login() {
             />
           </div>
 
-          <button type="submit" className="boton boton-ancho" disabled={cargando}>
+          <button
+            type="submit"
+            className="boton boton-ancho"
+            data-testid="login-submit"
+            disabled={cargando}
+          >
             {cargando ? 'Un momento...' : modo === 'login' ? 'Ingresar' : 'Crear cuenta'}
           </button>
         </form>
