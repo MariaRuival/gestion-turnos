@@ -784,3 +784,215 @@ y de datos son problemas distintos; este pipeline solo resuelve el primero.
 
 Usé Claude para planificar cada fase (publicación de imágenes, Neon, Render, la plantilla de nginx, el gate humano, el rollback) y para diagnosticar cada problema a medida que apareció: el nombre de imagen en mayúsculas, el header `Host`, el puerto fijo, los tres bugs del smoke test, y el archivo de nginx vaciado. Claude Code generó los cambios de código y de `ci.yml` a partir de esos diagnósticos, pero cada verificación la corrí yo misma: probé con `curl` QA y PROD con y sin token, confirmé en el navegador el login completo en los dos entornos, miré los logs reales de
 Render para cada deploy, y disparé y cronometré el rollback a mano desde mi terminal.
+
+## Enlaces del TP7
+
+- Paquetes públicos: `ghcr.io/mariaruival/gestion-turnos-backend:sha-59d34cc00fbffce53f0e1d2317b7b9b5e1c7a993`
+  y `ghcr.io/mariaruival/gestion-turnos-frontend:sha-59d34cc00fbffce53f0e1d2317b7b9b5e1c7a993`
+  (el commit que terminó en PROD; `docker pull` verificado sin credenciales en los dos).
+- **Corrida roja** (integración verde, e2e roja, frenando la promoción) — commit que rompió la app:
+  [`ef7758e`](https://github.com/MariaRuival/gestion-turnos/commit/ef7758e) (PR
+  [#48](https://github.com/MariaRuival/gestion-turnos/pull/48), un solo `data-testid` cambiado en
+  `ClienteView.jsx`, sin tocar `e2e/`). Corrida:
+  [`.../runs/40010304255`](https://github.com/MariaRuival/gestion-turnos/actions/runs/40010304255),
+  job e2e en rojo:
+  [`.../job/120614548995`](https://github.com/MariaRuival/gestion-turnos/actions/runs/40010304255/job/120614548995).
+  Artefactos de esa misma corrida: `playwright-report-integracion` (verde) y `playwright-report-e2e`
+  (rojo, con la traza del timeout buscando `reserva-submit`).
+- **Corrida completa en verde**, después del fix (PR
+  [#50](https://github.com/MariaRuival/gestion-turnos/pull/50)), hasta PROD:
+  [`.../runs/40013057136`](https://github.com/MariaRuival/gestion-turnos/actions/runs/40013057136).
+- QA: [turnos-front-qa.onrender.com](https://turnos-front-qa.onrender.com) /
+  [turnos-api-qa.onrender.com](https://turnos-api-qa.onrender.com). PROD:
+  [turnos-front-prod.onrender.com](https://turnos-front-prod.onrender.com) /
+  [turnos-api-prod.onrender.com](https://turnos-api-prod.onrender.com) — vivas hasta la defensa.
+- Release [`v7.0.0`](https://github.com/MariaRuival/gestion-turnos/releases/tag/v7.0.0), tagueada
+  sobre el commit que *Deployments* reporta como desplegado en `production`
+  (`59d34cc...`), no el último de `main`.
+
+---
+
+## TP7 — Contenedores en runtime, integración y e2e como gate
+
+### 1. "Build once, deploy many": qué problema del TP6 resuelve
+
+En el TP6, Render **reconstruía** cada servicio desde el repo con mi Dockerfile — nunca ejecutaba la
+imagen que mi pipeline había publicado en `ghcr.io`. Eso significa que "lo que se probó" (la imagen
+que pasó tests y coverage) y "lo que corre" (una reconstrucción posterior, independiente) podían no
+ser el mismo artefacto: si una dependencia sin pin exacto resolvía distinto entre un build y otro, QA
+y PROD podían terminar corriendo código distinto aunque el commit fuera idéntico — exactamente el
+escenario que describe el enunciado ("el rebuild de PROD resolvió una dependencia distinta"). Mi
+propio ejemplo real de esta clase de problema, aunque lo encontré en otro contexto: en el TP7 mismo,
+Render **nunca inyecta `RENDER_GIT_COMMIT`** a un servicio *image-backed*, algo que sí hacía cuando
+el servicio estaba conectado a Git — un comportamiento que cambia según *cómo* se construye, no según
+qué código tiene. Cerrar el hueco (Fase 1) significa que ahora el pipeline le dice a los 4 servicios
+**qué imagen exacta** ejecutar, y esa imagen es bit a bit la que ya pasó build + tests + coverage.
+
+### 2. Estrategia de etiquetas, qué garantiza cada una, y por qué no `latest`
+
+- **`sha-<commit>`** en `ghcr.io`: identifica una imagen con el código exacto de un commit. Es lo que
+  usan los Deploy Hooks (`imgURL=ghcr.io/.../gestion-turnos-backend:sha-<commit>`) para desplegar — así
+  QA y PROD siempre reciben una imagen trazable a un commit específico, nunca "la última que haya".
+- **`v7.0.0`** en git: le pone nombre humano a un punto del historial para la defensa y el catálogo de
+  versiones — no participa del deploy en sí, el pipeline no lo usa para nada.
+- Mi pipeline **nunca publica `latest`**: cada build se publica únicamente con el tag `sha-${{
+  github.sha }}`, generado dinámicamente en cada corrida. Si publicara `latest`, cualquier servicio
+  apuntando a ese tag correría la versión más reciente sin que el pipeline se lo dijera explícitamente
+  — perdería la trazabilidad "qué commit corre dónde" que es la base de todo este TP.
+- **Con qué imagen configuré los 4 servicios de Render, y por qué no es esa la que corre**: en
+  *Settings → Build → Source*, cada servicio quedó con *Existing Image* apuntando a
+  `sha-c809970384e4d0d15ec4196503cca99e287ae7dd` (el commit con el que hice el primer deploy manual, de
+  prueba). Esa URL es solo la **imagen inicial** con la que arrancó el servicio — la que corre *hoy*
+  es la del **último Deploy Hook** disparado por el pipeline (`imgURL=...:sha-<commit más reciente>`),
+  no la del campo de configuración, que nunca se actualiza solo. Se confirma en *Events*: cada entrada
+  dice "Triggered via Deploy Hook" con el `sha-<commit>` de esa corrida en particular.
+- **No creé servicios nuevos**: cambié la fuente de los 4 servicios ya existentes del TP6 (Settings →
+  Build → Source → Edit → Existing Image), así que no hay servicios viejos que haya tenido que
+  abandonar o limpiar.
+
+### 3. De la release a la imagen, en un paso
+
+```bash
+git rev-list -n1 v7.0.0
+```
+
+Devuelve el commit (`59d34cc...`), y ese mismo string es la etiqueta `sha-<commit>` de los dos
+paquetes en `ghcr.io` — no hace falta ningún paso intermedio ni traducción manual.
+
+### 4. Cómo se comprueba desde afuera que un entorno ejecuta la imagen (y qué no prueba el smoke)
+
+Entrando a *Events* de cada servicio en Render: cada deploy dice **"Triggered via Deploy Hook"** (no
+"Deploy triggered by a new commit" ni nada que sugiera reconstrucción) y nombra el `sha-<commit>`
+exacto de esa corrida — la misma etiqueta que figura en el package de `ghcr.io`. Un deploy hecho a
+mano desde el panel de Render, en cambio, se vería distinto ahí (sin esa leyenda), y por eso el
+enunciado insiste en que **solo** el pipeline dispara deploys.
+
+Lo que el smoke test (del TP6, heredado acá) **no** prueba: solo confirma que el proceso responde y
+que el commit coincide (`/health` con `GIT_SHA` horneado en la imagen, ya que Render no inyecta
+`RENDER_GIT_COMMIT` a servicios *image-backed*) — nunca confirma que un flujo de negocio real
+funcione de punta a punta. Mi propio caso: durante la demo de este TP, el smoke test de `deploy-qa`
+pasaba en verde sin problema aunque el botón de reservar tuviera el `data-testid` roto — "el proceso
+responde con el commit correcto" y "el botón de reservar funciona" son preguntas completamente
+distintas, y solo la e2e contesta la segunda.
+
+### 5. Qué pruebo en integración, qué en e2e, y por qué el tercero de cada suite
+
+**Integración** (`frontend/e2e/api.spec.js`, sin navegador, contra `turnos-api-qa.onrender.com`):
+1. CRUD de servicios completo — alta, `GET` lo encuentra, `DELETE`, `GET` ya no lo encuentra.
+2. Alta con nombre vacío → `400`, nada se crea.
+3. **La elegida por mí**: un cliente autenticado (no admin) intenta crear un servicio → `403`, no
+   `401` (porque SÍ está autenticado, solo no tiene el rol) → nada se crea. La elegí porque es
+   exactamente el tipo de regla que, si se rompe, nadie se entera hasta que alguien nota que el
+   catálogo de servicios cambió sin que un admin lo tocara — un bug de permisos silencioso.
+
+**E2E** (`frontend/e2e/tareas.spec.js`, con navegador, contra `turnos-front-qa.onrender.com`):
+1. Admin crea un servicio desde la UI, lo ve en pantalla sin recargar, lo elimina, desaparece.
+2. Cliente intenta reservar sin elegir servicios → ve el mensaje de error, no navega, "Mis turnos"
+   no cambia.
+3. **La elegida por mí ("el flujo de todos los días")**: un cliente reserva un turno real con un
+   servicio, y lo ve aparecer en "Mis turnos" — es literalmente la razón de existir de la app; si
+   esto se rompe, es lo primero que notaría cualquier usuario.
+
+**Qué NO puse en cada suite, y por qué (pirámide)**: la integración no prueba nada de interfaz (no
+sabe que existe un botón, solo que un `POST` devuelve `403`) — eso es trabajo de la e2e. La e2e, a su
+vez, no repite casos de permisos ya cubiertos por integración (sería redundante y más lento — un
+test con navegador tarda ~10x más que uno de integración) ni repite las reglas de negocio puras que
+ya probé con mocks en el TP5 (`turnoRules.js`) — esas no necesitan ni API real ni navegador.
+
+### 6. El par verde/rojo que diagnosticó mi rotura
+
+Rompí `ClienteView.jsx` cambiando el `data-testid` del botón de reservar de `reserva-submit` a
+`reserva-enviar` — un cambio que compila perfecto, no toca el backend, y es invisible para un humano
+con mouse (el botón sigue funcionando, solo cambió un atributo interno). En la corrida resultante:
+**`integracion` quedó verde** (nunca tocó el front, la API seguía sana) y **`e2e` quedó roja**, con
+el mismo mensaje exacto en los dos tests que usan ese botón: `waiting for getByTestId('reserva-
+submit')`, timeout agotado. El *page snapshot* del reporte de e2e mostraba la pantalla completamente
+funcional — formulario cargado, servicios con precios, botón visible con su texto — lo único "raro"
+era que Playwright nunca encontró el identificador técnico que buscaba. Ese contraste (integración
+sana + e2e ciega a un elemento que a simple vista está ahí) es la señal inequívoca de "el problema es
+un detalle del front, específicamente algo que un test automatizado busca por un identificador que
+cambió" — sin necesidad de leer una línea de código para llegar a esa conclusión.
+
+### 7. Por qué mi integración es "amplia" (contra QA ya desplegado) y no "estrecha"
+
+Elegí que `api.spec.js` le hable a la API de QA **real, ya desplegada**, en vez de levantar un
+backend local con una base en memoria o mockeada. Qué gano: pruebo exactamente la configuración que
+también usan los usuarios reales (CORS, variables de entorno de Render, el driver real de Postgres
+contra Neon, la latencia real de la red) — un bug que solo aparece por una variable de entorno mal
+seteada en QA jamás aparecería contra un backend local perfecto. Qué pierdo: velocidad (cada test
+depende de la red y del cold start del free tier) y determinismo — QA es una base compartida entre
+todas mis corridas, así que tuve que diseñar cada test para que fabrique su propio dato único (con
+`Date.now()` en el nombre) y lo borre al terminar, en vez de asumir un estado limpio de la base.
+
+### 8. Cold start y qué es un test flaky
+
+Cada job (`integracion`, `e2e`) espera primero a que la API y el front respondan, con un loop de
+hasta 10 intentos × 10 segundos antes de correr la suite — así el cold start del free tier de Render
+no cuenta como un fallo de los tests en sí. Dentro de la e2e, `loginUI` reintenta el login **una
+sola vez** si la primera respuesta fue un `502` real (cold start de la API o de la base) — pero no si
+el login simplemente tardó más de lo normal, porque ahí hay que esperar la navegación, no reintentar
+sobre una página que ya cambió.
+
+Un **test flaky** es uno que pasa o falla de forma inconsistente **sin que el código haya cambiado**
+— por factores externos (timing, estado compartido, orden de ejecución) en vez de por un bug real.
+Tuve varios casos reales durante este TP: los dos archivos de Playwright corriendo en paralelo se
+pisaban entre sí contando servicios en la misma base (se resolvió con `workers: 1` y, para el
+pipeline, con `e2e` dependiendo de `integracion` en vez de correr en paralelo); los horarios de los
+turnos de prueba chocaban entre corridas del mismo minuto (se resolvió eligiendo un horario al azar,
+meses en el futuro); y el login fallando por un `502` puntual del cold start (resuelto con el
+reintento de arriba). En todos los casos, la señal de que era "flaky" y no un bug real fue que corría
+la misma suite varias veces seguidas y el resultado cambiaba sin tocar código.
+
+### 9. Cómo la misma imagen del front sirve en QA y en PROD
+
+Nada de la URL del backend queda **horneado** en la imagen del front al momento del build — viene del
+patrón de template de nginx que ya armé en el TP6: `default.conf.template` usa `${BACKEND_URL}`,
+`${DNS_RESOLVER}` y `${PORT}`, y el script de arranque de la imagen oficial de nginx (`envsubst`) los
+reemplaza recién cuando el **contenedor arranca**, no cuando se construye la imagen. Así, la imagen
+`sha-<commit>` del front es idéntica en QA y en PROD — lo único que cambia es la variable de entorno
+`BACKEND_URL` que Render le inyecta a cada servicio (`https://turnos-api-qa.onrender.com` en uno,
+`https://turnos-api-prod.onrender.com` en el otro), configurada una sola vez en el panel de cada
+servicio, nunca en el Dockerfile ni en el pipeline.
+
+### 10. Problemas encontrados y cómo los resolví
+
+- **`RENDER_GIT_COMMIT` dejó de existir** al pasar los servicios a *Existing Image* (Render solo la
+  inyecta a deploys conectados a Git). Mi smoke test del TP6 comparaba ese valor contra `$GITHUB_SHA`
+  y hubiera quedado roto para siempre. Solución: hornear el commit **dentro** de la imagen con un
+  `ARG GIT_SHA` / `ENV GIT_SHA=$GIT_SHA` en el Dockerfile (pasado por el pipeline como `build-args` al
+  publicar), y que `/health` devuelva `RENDER_GIT_COMMIT || GIT_SHA || null`.
+- **Las dos suites en paralelo se pisaban**: `integracion` cuenta servicios antes/después de un alta
+  inválida, mientras `e2e` crea y borra su propio servicio contra la misma base de QA al mismo
+  tiempo. Encontrado analizando qué dato toca cada test, antes de que fallara en la práctica.
+  Solución: `e2e` pasó a depender de `integracion` (`needs: [integracion]`) en vez de correr en
+  paralelo — se serializan sin perder los dos jobs separados en Actions.
+- **El login en la e2e fallaba con `502` real** contra QA recién desplegado (cold start de la API y
+  de la base de Neon, no solo del front) — el chequeo de "¿está despierto?" del job `e2e` solo
+  probaba el front, nunca un login real. Se resolvió haciendo que ese chequeo también confirme
+  `/health` de la API antes de arrancar la suite, y agregando un reintento único en `loginUI` que
+  distingue "la URL cambió" (éxito, no reintentar) de "apareció `login-error`" (reintentar una vez)
+  — verificado con cuatro escenarios simulados, incluido uno con una contraseña incorrecta real, para
+  confirmar que el reintento nunca tapa un bug genuino.
+- **Confusión de ramas locales viejas**: después de mergear un PR y borrar su rama remota (buena
+  práctica habitual), seguí trabajando sobre la copia local de esa misma rama para un commit
+  posterior no relacionado — `git push` la recreó en GitHub como "nueva", lo cual generó confusión
+  sobre qué PR correspondía a qué cambio. Se resolvió identificando el estado real con `gh pr view
+  --json state,mergedAt` y `git log origin/main`, y llevando el commit suelto a una rama nueva y
+  limpia con `git cherry-pick` en vez de reusar la rama vieja.
+- **Trabajo migrado entre dos máquinas** (Mac → Windows → Mac) a mitad del TP: la configuración de
+  `gh auth login` y Docker Desktop tuvo que rehacerse en la máquina Windows, y se confirmó la
+  arquitectura (`AMD64`) antes de cualquier `docker pull`, ya que la Mac es Apple Silicon (ARM) y
+  necesita `--platform linux/amd64` mientras que Windows no.
+
+### 11. Declaración de uso de IA
+
+Usé Claude para planificar las 5 fases del TP (cerrar la cadena, el CRUD de servicios como recurso
+natural para las pruebas, las dos suites, el gate, la release), para diagnosticar cada problema real
+a medida que apareció (`RENDER_GIT_COMMIT` ausente, las suites pisándose, el `502` del login, la
+confusión de ramas), y para diseñar junto a mí qué tests entraban en cada suite y por qué. Claude
+Code generó el código (el CRUD, los `data-testid`, los dos specs de Playwright, los cambios de
+`ci.yml`) a partir de esos planes, y en varios casos encontró y corrigió solo problemas que yo no
+había anticipado (el `workers: 1`, el riesgo de las dos suites en paralelo, el caso límite del
+reintento del login). Puedo explicar qué verifica cada test de las dos suites, contra qué entorno
+corre, y qué pasa si falla — lo hice en la práctica durante la demo de este mismo TP, diagnosticando
+el fallo real con los reportes antes de arreglarlo.
