@@ -137,7 +137,7 @@ export default function ClienteView() {
               onCambiar={setSeleccionados}
             />
 
-            <button type="submit" className="boton" data-testid="reserva-enviar" disabled={reservando}>
+            <button type="submit" className="boton" data-testid="reserva-submit" disabled={reservando}>
               {reservando ? 'Reservando...' : 'Reservar turno'}
             </button>
           </form>
