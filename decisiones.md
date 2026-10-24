@@ -996,3 +996,57 @@ había anticipado (el `workers: 1`, el riesgo de las dos suites en paralelo, el 
 reintento del login). Puedo explicar qué verifica cada test de las dos suites, contra qué entorno
 corre, y qué pasa si falla — lo hice en la práctica durante la demo de este mismo TP, diagnosticando
 el fallo real con los reportes antes de arreglarlo.
+
+## TP8 — Infraestructura como Código (preprod con Terraform)
+
+### Enlaces del TP8
+
+- `infra/` en `main`: PR [#52](https://github.com/MariaRuival/gestion-turnos/pull/52).
+- Release [`v8.0.0`](https://github.com/MariaRuival/gestion-turnos/releases/tag/v8.0.0), sobre el
+  commit que deja `infra/` terminado.
+
+### 1. El riel elegido y las versiones fijadas
+
+Elegí el riel Terraform + Neon + Render, porque es exactamente la infraestructura que ya uso desde
+el TP6 (sin tener que migrar nada a Azure para este TP puntual). Versiones fijadas en
+`infra/main.tf`: Terraform `>= 1.5` (usé 1.17.0 en mi máquina), provider `kislerdm/neon` 0.18.0,
+provider `render-oss/render` 1.9.1 — las mismas que mide la cátedra, sin margen para que una
+actualización del provider cambie el comportamiento entre que yo lo probé y la defensa.
+
+### 2. Problemas encontrados y cómo los resolví
+
+- **`org_id` faltante**: el primer `apply` falló con `org_id is required` — la guía no lo menciona
+  porque Neon agregó el modelo de organizaciones después de escrita. Lo resolví buscando el
+  Organization ID en *Organization settings* y agregándolo al recurso `neon_project`.
+- **Owner ID de Render inválido**: copié mal el Owner ID desde la URL del dashboard (`usr-...`), y
+  el `apply` falló con `invalid ownerID`. Lo resolví pidiéndoselo directo a la API
+  (`GET /v1/owners` con mi API key) — mi cuenta resultó ser de tipo `team`, así que el ID real
+  empieza con `tea-`, no `usr-`.
+- **El backend se cae si la base nueva no tiene schema todavía**: cada vez que `preprod` nace
+  (sea la primera vez o después de un `destroy`/`apply`), la base queda vacía — Terraform crea el
+  proyecto y la base, nunca las tablas. Mi `entrypoint.sh` corre un seed automático al arrancar el
+  contenedor, así que si el deploy del backend se dispara antes de aplicar `schema.sql` a mano, el
+  proceso se cae con `relation "usuarios" does not exist` y Render nunca llega a abrir un puerto
+  (`exit 1`, "no open ports detected"). Lo entendí recién al ver los *Logs* del servicio, no por el
+  mensaje de Render en sí (que solo decía "port scan timeout"). La solución es de orden: aplicar
+  el schema **antes** de confiar en que el backend va a levantar, y si ya falló, redisparar el
+  deploy manualmente después.
+- **Confusión con pestañas viejas del navegador**: después de un segundo `destroy`/`apply`, Render
+  crea servicios con IDs nuevos — una pestaña abierta desde antes (con la URL vieja del dashboard)
+  queda apuntando a un servicio que ya no existe, mostrando "Page not found" o "not found: server".
+  Se resuelve siempre volviendo al dashboard general y re-entrando al servicio por su nombre, no
+  confiando en una pestaña vieja — un recordatorio de que el *id* de un recurso no es estable
+  entre un `destroy` y el siguiente `apply`, aunque el *nombre* sea el mismo.
+
+### 3. Declaración de uso de IA
+
+Usé Claude para planificar las fases del TP (base de Neon, el experimento del drift, los dos
+servicios de Render, `prevent_destroy`, el ciclo de vida completo) y para diagnosticar cada
+problema real a medida que apareció (`org_id`, el Owner ID de tipo `team`, el orden
+schema-antes-que-deploy). No usé Claude Code para generar el HCL de este TP a propósito: el
+objetivo central de la nota es que yo misma pueda leer y explicar cada `plan` en la defensa, así
+que escribí y corrí cada bloque de `main.tf` a mano, entendiendo qué hacía cada atributo antes de
+aplicarlo. Puedo explicar en vivo qué significa `(known after apply)`, por qué el `plan` detecta un
+drift pero no un recurso no declarado, y por qué el orden de destrucción sigue el grafo de
+dependencias al revés — lo viví corriendo el ciclo completo dos veces, con un problema real en el
+medio de cada una.
