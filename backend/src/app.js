@@ -1,3 +1,13 @@
+// Sentry va primero: tiene que inicializarse antes de que se cargue Express
+// para poder instrumentarlo. Sin SENTRY_DSN (local, QA) queda inactivo y no
+// manda nada; solo PROD tiene la variable seteada.
+const Sentry = require('@sentry/node');
+
+Sentry.init({
+  dsn: process.env.SENTRY_DSN || '',
+  tracesSampleRate: 1.0,
+});
+
 const express = require('express');
 const cors = require('cors');
 const routes = require('./routes');
@@ -25,6 +35,9 @@ app.get('/health', async (req, res) => {
 app.use('/api', routes);
 
 app.use((req, res) => res.status(404).json({ error: 'Recurso no encontrado.' }));
+// El de Sentry va ANTES del nuestro: reporta el error y lo pasa con next(err),
+// y errorHandler arma la respuesta JSON como siempre.
+Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 module.exports = app;
