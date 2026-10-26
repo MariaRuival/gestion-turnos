@@ -1050,3 +1050,75 @@ aplicarlo. Puedo explicar en vivo qué significa `(known after apply)`, por qué
 drift pero no un recurso no declarado, y por qué el orden de destrucción sigue el grafo de
 dependencias al revés — lo viví corriendo el ciclo completo dos veces, con un problema real en el
 medio de cada una.
+
+## TP9 — DevSecOps + Observabilidad + Continuous Feedback
+
+### Enlaces del TP9
+
+- Dependabot: [`.github/dependabot.yml`](https://github.com/MariaRuival/gestion-turnos/blob/main/.github/dependabot.yml),
+  PR mergeado [#66](https://github.com/MariaRuival/gestion-turnos/pull/66).
+- Sentry: PRs [#68](https://github.com/MariaRuival/gestion-turnos/pull/68) (backend + frontend) y
+  [#69](https://github.com/MariaRuival/gestion-turnos/pull/69)/[#70](https://github.com/MariaRuival/gestion-turnos/pull/70)
+  (diagnóstico y limpieza del endpoint temporal).
+- Tarjeta en el tablero: [issue #70](https://github.com/MariaRuival/gestion-turnos/issues/70).
+- Release [`v9.0.0`](https://github.com/MariaRuival/gestion-turnos/releases/tag/v9.0.0).
+
+### 1. El PR de Dependabot que mergeé, y por qué me animé
+
+Mergeé [#66](https://github.com/MariaRuival/gestion-turnos/pull/66), que actualiza `pg` (el driver
+de Postgres del backend) de `8.23.0` a `8.23.1` — un cambio de **patch** en SemVer (el último
+número), que por convención significa corrección de bugs sin romper nada de la API pública. Me
+animé a mergearlo porque: (a) es patch, no minor ni major, el riesgo de romper algo es mínimo; (b)
+es la misma librería que uso todos los días en producción, no una dependencia de desarrollo; (c) el
+pipeline completo (build, tests, coverage, el gate de integración/e2e) pasó en verde contra la
+versión nueva, sin tocar nada del código.
+
+Un problema real en el camino: los PRs de Dependabot fallaban con `malformed HTTP Authorization
+header` al loguearse en Docker Hub, porque Dependabot usa una bóveda de secrets **separada**
+(*Settings → Secrets and variables → Dependabot*), distinta de la que usa el resto del pipeline. Lo
+resolví cargando `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` ahí también, con mucho cuidado de copiar el
+token sin saltos de línea invisibles (confirmado probando el login desde mi propia terminal antes
+de pegarlo en GitHub).
+
+### 2. El monitor, y mis operaciones real y más lenta
+
+Provoqué la caída suspendiendo `turnos-api-prod` a mano en Render. UptimeRobot avisó el DOWN a las
+**00:28:06** (HTTP 503) y el UP a las **00:33:10** — **5 minutos y 4 segundos** en total. Fue rápido
+porque, apenas reanudé el servicio, abrí `/health` a mano en el navegador para despertarlo antes de
+que llegara la siguiente ronda de chequeo de UptimeRobot (cada 5 minutos).
+
+En Sentry (proyecto del frontend, pestaña *Traces*), la operación **más usada** en mi muestra fue la
+navegación interna entre rutas de React (`/cliente`, sin recarga completa), y la **más lenta** fue
+el *pageload* de `/login` (~555ms, contra ~15-25ms de una navegación interna) — esperable, porque un
+*pageload* carga HTML, CSS, JS y assets desde cero, mientras que una navegación de React solo
+cambia de componente. Ese dato se convirtió en el [issue #70](https://github.com/MariaRuival/gestion-turnos/issues/70)
+de mi tablero.
+
+### 3. Problemas encontrados y declaración de uso de IA
+
+- **El mismo problema de secrets corruptos de antes, dos veces**: tanto el token de Docker Hub para
+  Dependabot como el DSN de Sentry en Render fallaron la primera vez por caracteres invisibles al
+  pegarlos desde el navegador. Las dos veces lo resolví copiando el valor exacto desde mi propia
+  terminal con `echo -n ... | pbcopy` (sin salto de línea), en vez de copiar y pegar directo desde
+  una página web.
+- **Sentry en PROD no mandaba el error, aunque el código estaba bien**: activé `debug: true`
+  temporalmente en el `Sentry.init()` del backend (PR aparte, revertido después) para ver qué hacía
+  el SDK en los logs de Render. Ahí confirmé `Captured error event` y el envío del envelope — el
+  problema había sido solo timing (deploys y reinicios del servicio free tier justo durante las
+  pruebas anteriores), no un bug real. El evento llegó bien en el intento siguiente, con el DSN
+  confirmado letra por letra contra el que mostraba Sentry.
+- **Confusión de organizaciones en Sentry**: en un punto de la configuración terminé con dos
+  slugs de organización distintos (`gestion-turnos` y `gestion-turnos-backend`) para la misma
+  cuenta, lo que generó confusión momentánea sobre qué URL usar — se resolvió navegando siempre
+  desde el dashboard en vez de confiar en una URL guardada de memoria.
+
+### Declaración de uso de IA
+
+Usé Claude para planificar las 5 fases del TP y para diagnosticar cada problema real a medida que
+aparecía (los secrets corruptos de Docker Hub y de Sentry, el porqué de que los eventos no
+llegaran). Claude Code hizo los cambios de código puntuales (la inicialización de Sentry en back y
+front, respetando el estilo CommonJS existente y el `errorHandler` propio del proyecto; el endpoint
+temporal de demo y su limpieza posterior) y verificó cada uno con una suite real antes de que yo
+lo revisara y subiera. Cada configuración externa (Dependabot, CodeQL, UptimeRobot, Sentry, las
+variables de entorno en Render) la hice yo misma, paso a paso, confirmando en cada pantalla que el
+resultado fuera el esperado antes de seguir.
