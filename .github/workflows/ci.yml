@@ -101,15 +101,6 @@ jobs:
       - name: Bajar el codigo al runner
         uses: actions/checkout@v6
 
-      - name: DEBUG temporal - longitud de los secrets (sin mostrar el valor)
-        run: |
-          echo "Longitud username: ${#DOCKERHUB_USERNAME}"
-          echo "Longitud token: ${#DOCKERHUB_TOKEN}"
-        env:
-          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
-          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
-      
-
       - name: Login a Docker Hub (pulls autenticados, evita el 429 del pool anonimo)
         uses: docker/login-action@v3
         with:
