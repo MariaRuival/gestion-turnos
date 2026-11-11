@@ -60,7 +60,7 @@ jobs:
           " >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publicar el coverage del backend
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: coverage-backend
@@ -141,7 +141,7 @@ jobs:
           " >> "$GITHUB_STEP_SUMMARY"
 
       - name: Publicar el coverage del frontend
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: coverage-frontend
@@ -237,7 +237,7 @@ jobs:
           API_BASE_URL: https://turnos-api-qa.onrender.com
         run: npx playwright test e2e/api.spec.js
       - name: Publicar el reporte de integracion
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-integracion
@@ -277,7 +277,7 @@ jobs:
           E2E_BASE_URL: https://turnos-front-qa.onrender.com
         run: npx playwright test e2e/tareas.spec.js
       - name: Publicar el reporte de e2e
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         if: ${{ !cancelled() }}
         with:
           name: playwright-report-e2e
